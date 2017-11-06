@@ -116,6 +116,20 @@ class Track(Entity):
 		self.sections = []
 		self.width = 75
 
+		self.make_track()
+
+	def make_track(self):
+		self.add_section(line=Line((-50, -50), (50, 50)))
+		self.add_section(section=self.sections[-1], point=(75, 75))
+		self.add_section(section=self.sections[-1], point=(100, 175))
+		self.add_section(section=self.sections[-1], point=(90, 220))
+		self.add_section(section=self.sections[-1], point=(80, 260))
+		self.add_section(section=self.sections[-1], point=(50, 320))
+		self.add_section(section=self.sections[-1], point=(65, 370))
+		self.add_section(section=self.sections[-1], point=(80, 390))
+		self.add_section(section=self.sections[-1], point=(105, 420))
+	
+	def make_track_tests(self):
 		self.add_section(line=Line((-50, -50), (50, 50)))
 		self.add_section(section=self.sections[-1], point=(75, 75))
 		self.add_section(section=self.sections[-1], point=(100, 175))

@@ -22,10 +22,12 @@ class Simulator(pyglet.window.Window):
 
 		self.car = Car() # will be deleted later, not even drawn
 		self.track = Track()
+		self.generation = 1
 
 		self.time = 0
 		self.fps = pyglet.clock.ClockDisplay()
 		self.times = defaultdict(list)
+		self.counter = 0
 
 		self.setup_labels()
 
@@ -37,19 +39,36 @@ class Simulator(pyglet.window.Window):
 	def setup_labels(self):
 		self.time_label = pyglet.text.Label(text="", x=10, y=self.height-20)
 		self.info_label = pyglet.text.Label(text="", x=10, y=self.height-40)
+		self.info_label.text = "Generation: %d" % self.generation
 
-	def start(self):
-		self.cars = [Car() for i in range(15)]
+	def start(self, makecars=False):
+		if makecars:
+			self.cars = [Car() for i in range(10)]
 		self.car = self.cars[0]
 		[car.put_on_track(self.track) for car in self.cars]
 		[car.accelerate(50) for car in self.cars]
 
 	def evolve(self):
 		self.generation += 1
-		# select best 2 or randomize all
-		# mutate cars based on the winnders
-		# create new array of cars
-		[car.evolve() for car in self.cars]
+		self.info_label.text = "Generation: %d" % self.generation
+		cars = sorted(self.cars, key=operator.attrgetter('section_idx', 'time'), reverse=True)
+		if cars[0].section_idx < 2:
+			#print("Don't have at least two good specimen, randomizing")
+			[car.driver.randomize() for car in self.cars]
+			return
+		best = cars[0]
+		runnerup = cars[1]
+		self.cars = [Car() for i in range(10)]
+		self.cars[0].driver.copy(best.driver)
+		self.cars[1].driver.copy(runnerup.driver)
+		[car.driver.copy(best.driver) for car in self.cars[2:6]]
+		[car.driver.copy(runnerup.driver) for car in self.cars[6:]]
+		for i in range(4):
+			#print("mutating a pair of cars. severity: %d, chance: %d" % (5*(i+1), 100-25*i))
+			self.cars[i+2].driver.mutate(0.05*(i+1), 1-0.25*i)
+			self.cars[i+2+4].driver.mutate(0.05*(i+1), 1-0.25*i)
+		#print("copied and mutated!")
+		return True
 
 	def set_and_get_avg_time(self, cat, time, limit=10):
 		self.times[cat].append(time)
@@ -65,11 +84,19 @@ class Simulator(pyglet.window.Window):
 			if self.keystate[key]:
 				self.dispatch_event('on_key_press', key, False)
 		[car.update(dt) for car in self.cars]
-		self.car = sorted(self.cars, key=operator.attrgetter('section_idx'))[-1]
+		if all(car.collided for car in self.cars):
+			created_cars = self.evolve()
+			self.start(not created_cars)
+			return
+		leader = sorted(self.cars, key=operator.attrgetter('section_idx'))[-1]
+		if self.car.section_idx < leader.section_idx:
+			self.car = leader
 		t2 = time.time()
 		#self.car.update(dt)
-		self.x = self.car.x
-		self.y = self.car.y
+		#self.x = self.car.x
+		#self.y = self.car.y
+		self.counter += 1
+		#if self.counter % 10: return
 		self.draw()
 		t3 = time.time()
 		#print("\rdraw: %.3f, update: %.3f, dt = %.3f" % (t3 - t2, t2 - t1, dt), end="")
@@ -78,7 +105,7 @@ class Simulator(pyglet.window.Window):
 		updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
 		carupdate = self.car.times['string']
 		#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
-		self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
+		#self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
 
 	def setup2d_init(self):
 		"""
@@ -180,6 +207,6 @@ class Simulator(pyglet.window.Window):
 
 if __name__ == "__main__":
 	simulator = Simulator(width=800)
-	simulator.start()
+	simulator.start(True)
 	pyglet.app.run()
 	print()

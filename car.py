@@ -68,7 +68,7 @@ class Car(Entity):
 		self.rot = 0
 		self.prev_rot = 0
 		self.speed = 0
-		self.max_steering = 100
+		self.max_steering = 180
 		self.steering = 0
 
 		self.width = 10
@@ -102,7 +102,7 @@ class Car(Entity):
 		self.time = 0
 		self.last_action = 0
 		self.action_rate = 0.1 # only do something once every 100ms
-		self.brain = neural.Driver() # neural network
+		self.driver = neural.Driver(2+len(self.cameras)) # neural network
 
 		self.times = defaultdict(list)
 
@@ -164,6 +164,9 @@ class Car(Entity):
 		if self.time > 3 and self.section_idx == 0:
 			self.collided = True
 			return
+		if abs(self.steering) > 5:
+			self.collided = True # broke
+			return
 		self.time += dt
 		#self.iters = (self.iters + 1) % 10
 		t0 = time.time()
@@ -199,7 +202,11 @@ class Car(Entity):
 	def make_action(self):
 		# feed the data to the neural network
 		distances = [camera.distance for camera in self.cameras]
-		self.steering = self.brain.compute(self.speed, self.steering, *distances) #0-0.5 is left, 0.5-1 is right
+		self.steering = self.driver.compute(self.speed, self.steering, *distances) #0-0.5 is left, 0.5-1 is right
+		if self.steering > 1:
+			self.steering = 1
+		elif self.steering < -1:
+			self.steering = -1
 		#print("\rself.steering = %.3f" % self.steering, end="")
 
 	def update_points(self):
@@ -251,12 +258,19 @@ class Car(Entity):
 		self.bottom_left = self.bottom_left.shifted(-drx, -dry)
 
 	def put_on_track(self, track):
+		self.winner = False
+		self.collided = False
 		self.track = track
 		self.change_section(0)
-		self.rot = self.section.quad.line.angle
-		self.rotate(0)
-		self.start_time = time.time()
 		self.time = 0
+		self.x = 0
+		self.y = 0
+		self.speed = 0
+		self.rot = self.section.quad.line.angle
+		self.move(0)
+		self.rotate(0)
+		[camera.update() for camera in self.cameras]
+		self.start_time = time.time()
 
 	def change_section(self, idx):
 		self.section = self.track.sections[idx]
