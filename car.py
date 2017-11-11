@@ -94,7 +94,7 @@ class Car(Entity):
 
 		self.construct()
 		corner_angle = math.atan(self.width / self.height)
-		self.cameras = [Camera(self, 0, 75), Camera(self, corner_angle, 50), Camera(self, -corner_angle, 50),
+		self.cameras = [Camera(self, 0, 175), Camera(self, corner_angle, 100), Camera(self, -corner_angle, 100),
 						Camera(self, 3 * corner_angle, 50), Camera(self, -3 * corner_angle, 50),
 						Camera(self, math.pi/2, 30), Camera(self, -math.pi/2, 30)]
 
@@ -195,7 +195,7 @@ class Car(Entity):
 		c = 1000 * self.set_and_get_avg_time('collision', t4 - t3)
 		s = 1000 * self.set_and_get_avg_time('section_change', t5 - t4)
 		d = 1000 * self.set_and_get_avg_time('camera', t6 - t5)
-		self.times['string'] = "move=%.3f, rot=%.3f, coll=%.3f,cam=%.3f,sec=%.3f" % (m, r, c, d, s)
+		self.times['string'] = "act=%.3f,move=%.3f, rot=%.3f, coll=%.3f,cam=%.3f,sec=%.3f" % (a, m, r, c, d, s)
 		#self.info_label.text = "action: %.5f, move: %.5f, rotate: %.5f, section change: %.5f" % (
 		#	(t2 - t1, t3 - t2, t4 - t3, t5 - t4))
 

@@ -33,6 +33,7 @@ class Simulator(pyglet.window.Window):
 
 		self.x = 0
 		self.y = 0
+		self.scale = 1
 
 		pyglet.clock.schedule_interval(self._update, 1.0 / 60)
 
@@ -105,7 +106,7 @@ class Simulator(pyglet.window.Window):
 		updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
 		carupdate = self.car.times['string']
 		#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
-		#self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
+		self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
 
 	def setup2d_init(self):
 		"""
@@ -128,8 +129,8 @@ class Simulator(pyglet.window.Window):
 		glLoadIdentity()
 		#gluOrtho2D(0+self.x, self.width+self.x, 0+self.y, self.height+self.y)
 		#gluOrtho2D(0+self.x, self.width/2+self.x, 0+self.y, self.height/2+self.y)
-		gluOrtho2D(-self.width/2 + self.x, self.width/2 + self.x, 
-			-self.height/2 + self.y, self.height/2 + self.y)
+		gluOrtho2D(self.scale*(-self.width/2 + self.x), self.scale*(self.width/2 + self.x),
+			self.scale*(-self.height/2 + self.y), self.scale*(self.height/2 + self.y))
 		glMatrixMode(GL_MODELVIEW)
 		glLoadIdentity()
 
@@ -181,6 +182,12 @@ class Simulator(pyglet.window.Window):
 			self.x -= 10
 		elif symbol == key.D:
 			self.x += 10
+		elif symbol == key.E:
+			if self.scale > 0.2:
+				self.scale -= 0.1
+		elif symbol == key.Q:
+			if self.scale < 3:
+				self.scale += 0.1
 		elif symbol == key.C:
 			self.car.check_collision()
 			self.keystate[symbol] = False
@@ -206,7 +213,7 @@ class Simulator(pyglet.window.Window):
 			self.car.steering = 0
 
 if __name__ == "__main__":
-	simulator = Simulator(width=800)
+	simulator = Simulator(width=900)
 	simulator.start(True)
 	pyglet.app.run()
 	print()
