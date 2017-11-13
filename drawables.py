@@ -32,6 +32,9 @@ class Point(tuple):
 		self.x = x
 		self.y = y
 
+	def __getitem__(self, idx):
+		return (self.x, self.y)[idx]
+
 	def shifted(self, delta_x, delta_y):
 		return Point(self.x + delta_x, self.y + delta_y)
 
@@ -43,16 +46,15 @@ class Line(Entity):
 		self._start = Point(*start)
 		if angle is not None:
 			self._end = Point(self.start.x + length*math.sin(angle), self.start.y + length*math.cos(angle))
+			self._angle = angle
 		else:
 			self._end = Point(*end)
-		self.coords = self.start + self.end # tuple of length 4 for both points
 
 		self._angle = None
 		self._centre = None
 		self._quadrant = None
 		self._length = None
 
-			# computed once, since Line is supposed to be immutabe
 		self.quadrant = self.get_quadrant()
 		self.centre = self.get_centre()
 
@@ -71,6 +73,10 @@ class Line(Entity):
 		return self._end
 
 	@property
+	def coords(self):
+		return self.start + self.end # tuple of length 4 for both points
+
+	@property
 	def length(self):
 		if not self._length:
 			self._length = 	((self.end.x - self.start.x) ** 2 + (self.end.y - self.start.y) ** 2) ** 0.5
@@ -81,13 +87,13 @@ class Line(Entity):
 		if not self._angle is None:
 			return self._angle
 		if self.quadrant == 1:
-			self._angle = math.atan((self.end.x - self.start.x) / (self.end.y - self.start.y) or 0.000001)
+			self._angle = math.atan((self.end.x - self.start.x) / ((self.end.y - self.start.y) or 0.000001))
 		elif self.quadrant == 2:
-			self._angle = 3 * math.pi / 2 +  math.atan((self.end.y - self.start.y) / abs(self.end.x - self.start.x) or 0.000001)
+			self._angle = 3 * math.pi / 2 +  math.atan((self.end.y - self.start.y) / (abs(self.end.x - self.start.x) or 0.000001))
 		elif self.quadrant == 4:
-			self._angle = math.pi / 2 + math.atan(abs(self.end.y - self.start.y) / (self.end.x - self.start.x) or 0.000001)
+			self._angle = math.pi / 2 + math.atan(abs(self.end.y - self.start.y) / ((self.end.x - self.start.x) or 0.000001))
 		elif self.quadrant == 3:
-			self._angle = math.pi + math.atan((self.end.x - self.start.x) / (self.end.y - self.start.y) or 0.000001)
+			self._angle = math.pi + math.atan((self.end.x - self.start.x) / ((self.end.y - self.start.y) or 0.000001))
 		return self._angle
 
 	def get_centre(self):
@@ -107,8 +113,23 @@ class Line(Entity):
 		y = anchor.y + (end.x - anchor.x) * math.sin(angle) + (end.y - anchor.y) * math.cos(angle)
 		return Line(anchor, (x,y))
 
+	def rotate(self, angle):
+		if anchor == "start":
+			anchor, end = self.start, self.end
+		else:
+			anchor, end = self.end, self.start
+		x = anchor.x + (end.x - anchor.x) * math.cos(angle) - (end.y - anchor.y) * math.sin(angle)
+		y = anchor.y + (end.x - anchor.x) * math.sin(angle) + (end.y - anchor.y) * math.cos(angle)
+		anchor.x = x
+		anchor.y = y
+
 	def moved(self, x, y):
 		return Line((self.start.x + x, self.start.y + y), (self.end.x + x, self.end.y + y))
+
+	def move(self, delta_x, delta_y):
+		self._start = self.start.shifted(delta_x, delta_y)
+		self._end = self.end.shifted(delta_x, delta_y)
+		self.centre = self.centre.shifted(delta_x, delta_y)
 
 	def point_on_line(self, point, tol=math.pi/180):
 		l1 = Line(self.start, point)

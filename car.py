@@ -24,7 +24,10 @@ class Camera(object):
 		return self.car.rot + self.direction
 	
 	def	update(self):
-		self.line = Line(self.origin, angle=self.angle, length=self.max_dist).moved(*self.car.position)
+		#self.line = Line(self.origin, angle=self.angle, length=self.max_dist).moved(*self.car.position)
+		#self.line = Line(self.origin, angle=self.angle, length=self.max_dist)
+		#self.line.move(*self.car.position)
+		self.line = Line(self.car.position, angle=self.angle, length=self.max_dist)
 		#self.get_focus()
 		self.get_focus_new()
 
@@ -35,10 +38,18 @@ class Camera(object):
 			if i < 0 or i >= len(self.car.track.sections):
 				break
 			section = self.car.track.sections[i]
-			self.focus = section.quad.left.intersection(self.line) or section.quad.right.intersection(self.line)
+			if graphtools.left_of(self.line.angle, section.quad.line.angle):
+				self.focus = section.quad.left.intersection(self.line)
+			else:
+				self.focus = section.quad.right.intersection(self.line)
+
 			if self.focus:
-				self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
+				#self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
+				#self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
+				self.focus = Point(*self.focus)
+				self.distance = ((self.focus.x - self.car.position.x) ** 2 + (self.focus.y - self.car.position.y) ** 2) ** 0.5
 				return
+
 			if last_border != "back" and self.line.intersects(section.quad.front):
 				last_border = "front"
 				i += 1
@@ -62,8 +73,9 @@ class Camera(object):
 		self.distance = self.max_dist
 
 class Car(Entity):
-	def __init__(self):
+	def __init__(self, human=False):
 		super().__init__()
+
 		self.max_speed = 150
 		self.rot = 0
 		self.prev_rot = 0
@@ -77,7 +89,7 @@ class Car(Entity):
 		self.quad = Quad(box=Box(-self.width/2, self.height/2, self.width, self.height))
 		self.points_batch = pyglet.graphics.Batch()
 
-		self.top_left = Line(self.position, self.quad.top_left).rotated(-self.rot).end
+		self.top_left = Line((0,0), self.quad.top_left).rotated(-self.rot).moved(self.x, self.y).end
 		self.top_right = Line((0,0), self.quad.top_right).rotated(-self.rot).moved(self.x, self.y).end
 		self.bottom_left = Line((0,0), self.quad.bottom_left).rotated(-self.rot).moved(self.x, self.y).end
 		self.bottom_right = Line((0,0), self.quad.bottom_right).rotated(-self.rot).moved(self.x, self.y).end
@@ -103,6 +115,7 @@ class Car(Entity):
 		self.last_action = 0
 		self.action_rate = 0.1 # only do something once every 100ms
 		self.driver = neural.Driver(2+len(self.cameras)) # neural network
+		self.human = human
 
 		self.times = defaultdict(list)
 
@@ -133,6 +146,12 @@ class Car(Entity):
 	def position(self):
 		return Point(self.x, self.y)
 
+	@position.setter
+	def position(self, point):
+		point = Point(*point)
+		self.x = point.x
+		self.y = point.y
+
 	def draw(self):
 		super().draw()
 
@@ -161,7 +180,7 @@ class Car(Entity):
 
 	def update(self, dt):
 		if self.collided: return
-		if self.time > 3 and self.section_idx == 0:
+		if not self.human and self.time > 3 and self.section_idx == 0:
 			self.collided = True
 			return
 		if abs(self.steering) > 5:
@@ -200,6 +219,8 @@ class Car(Entity):
 		#	(t2 - t1, t3 - t2, t4 - t3, t5 - t4))
 
 	def make_action(self):
+		if self.human:
+			return
 		# feed the data to the neural network
 		distances = [camera.distance for camera in self.cameras]
 		self.steering = self.driver.compute(self.speed, self.steering, *distances) #0-0.5 is left, 0.5-1 is right
@@ -257,18 +278,23 @@ class Car(Entity):
 		self.top_right = new_right
 		self.bottom_left = self.bottom_left.shifted(-drx, -dry)
 
+	def reset_corners(self):
+		self.top_left = Line((0,0), self.quad.top_left).rotated(-self.rot).moved(self.x, self.y).end
+		self.top_right = Line((0,0), self.quad.top_right).rotated(-self.rot).moved(self.x, self.y).end
+		self.bottom_left = Line((0,0), self.quad.bottom_left).rotated(-self.rot).moved(self.x, self.y).end
+		self.bottom_right = Line((0,0), self.quad.bottom_right).rotated(-self.rot).moved(self.x, self.y).end
+
 	def put_on_track(self, track):
 		self.winner = False
 		self.collided = False
 		self.track = track
 		self.change_section(0)
 		self.time = 0
-		self.x = 0
-		self.y = 0
-		self.speed = 0
+		self.position = self.section.quad.line.centre
 		self.rot = self.section.quad.line.angle
-		self.move(0)
-		self.rotate(0)
+		self.reset_corners()
+		self.speed = 0
+		self.last_action = 0
 		[camera.update() for camera in self.cameras]
 		self.start_time = time.time()
 
@@ -283,14 +309,14 @@ class Car(Entity):
 			return
 		change = self.section.car_has_left(self)
 		new_idx = self.section_idx + change
-		if new_idx < 0:
+		if new_idx < 0:# and not self.track.circular:
 			self.collided = True
-		elif new_idx == len(self.track.sections):
+		elif new_idx == len(self.track.sections) and not self.track.circular:
 			self.collided = True
 			self.winner = True
 			return
 		elif change:
-			self.change_section(new_idx)
+			self.change_section(new_idx % len(self.track.sections))
 
 	def check_collision(self):
 		if not (self.track and self.section):

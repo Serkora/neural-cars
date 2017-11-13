@@ -115,8 +115,9 @@ class Track(Entity):
 		super().__init__()
 		self.sections = []
 		self.width = 75
+		self.circular = False
 
-		self.make_track()
+		self.make_track_new()
 
 	def make_track(self):
 		self.add_section(line=Line((-50, -50), (50, 50)))
@@ -128,7 +129,38 @@ class Track(Entity):
 		self.add_section(section=self.sections[-1], point=(65, 370))
 		self.add_section(section=self.sections[-1], point=(80, 390))
 		self.add_section(section=self.sections[-1], point=(105, 420))
-	
+
+	def make_track_new(self):
+		#points = [(0, 100), (20, 150), (50, 250), (100, 280), (150, 300)]
+		points = [(0, 100), (20, 150), (50, 250), (100, 260), (160, 230),
+				(180,180), (180, 120), (200, 50), (200, 20), 
+				(100, -120), (20, -90), (0, -40), (0,0)]
+		prev_quad = Quad(box=Box(0, 50, self.width, 50))
+		#prev_quad = Quad(coords=((0,0),(0,self.width),(0,50),(self.width,50)))
+		for point in points:
+			prev_quad, new_quad = self.make_section_quad(point, prev_quad)
+			self.add_section(quad=prev_quad)
+			prev_quad = new_quad
+		self.add_section(quad=prev_quad)
+		self.circular = True
+
+	def make_section_quad(self, point, previous, width=None):
+		width = width or self.width
+		point = Point(*point)
+		left = Line(previous.top_left, point)
+		top_right = left.end.translated(left.angle+math.pi/2, width)
+		bottom_right = left.start.translated(left.angle+math.pi/2, width)
+		right = Line(bottom_right, top_right)
+		intersection = previous.right.intersection(right)
+		if intersection:
+			bottom_right = intersection
+			p = previous
+			previous = Quad(coords=(p.bottom_left, p.bottom_right, p.top_left, bottom_right))
+		else:
+			bottom_right = previous.top_right
+		new_quad = Quad(coords=(left.start, bottom_right, left.end, top_right))
+		return previous, new_quad
+
 	def make_track_tests(self):
 		self.add_section(line=Line((-50, -50), (50, 50)))
 		self.add_section(section=self.sections[-1], point=(75, 75))

@@ -79,7 +79,13 @@ def same_direction(angle1, angle2):
 	mx = max(angle1, angle2)
 	mn = min(angle1, angle2)
 	return mx - mn < math.pi / 2 or (2 * math.pi - mx) + mn < math.pi / 2
-		
+
+def left_of(angle1, angle2):
+	#print("angle1 = %.1f, angle2 = %.1f, pi = %.2f" % (angle1, angle2, math.pi))
+	return -math.pi < (angle1 - angle2) < 0 or math.pi < (angle1 - angle2) < math.pi * 2
+
+def right_of(angle1, angle2):
+	return not left_of(angle1, angle2)
 
 
 

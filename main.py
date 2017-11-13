@@ -1,3 +1,5 @@
+import sys
+import argparse
 import operator
 import time
 import math
@@ -14,14 +16,17 @@ def vec(*args):
 	return (GLfloat * len(args))(*args)
 
 class Simulator(pyglet.window.Window):
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, carnum=10, **kwargs):
 		config = pyglet.gl.Config(*args, sample_buffers=1, samples=1, depth_size=16, double_buffer=True, **kwargs)
 		super().__init__(*args, config=config, resizable=True, vsync=True, **kwargs)
 		self.keystate = key.KeyStateHandler()
 		self.push_handlers(self.keystate)
 
-		self.car = Car() # will be deleted later, not even drawn
+		self.carnum = carnum // 2 * 2 # need even number
+		self.cars = []
+		self.car = Car(human=True) # will be deleted later if simulation starts
 		self.track = Track()
+		self.car.put_on_track(self.track)
 		self.generation = 1
 
 		self.time = 0
@@ -44,7 +49,7 @@ class Simulator(pyglet.window.Window):
 
 	def start(self, makecars=False):
 		if makecars:
-			self.cars = [Car() for i in range(10)]
+			self.cars = [Car() for i in range(self.carnum)]
 		self.car = self.cars[0]
 		[car.put_on_track(self.track) for car in self.cars]
 		[car.accelerate(50) for car in self.cars]
@@ -53,23 +58,25 @@ class Simulator(pyglet.window.Window):
 		self.generation += 1
 		self.info_label.text = "Generation: %d" % self.generation
 		cars = sorted(self.cars, key=operator.attrgetter('section_idx', 'time'), reverse=True)
-		if cars[0].section_idx < 2:
+		if cars[0].section_idx < 1:
 			#print("Don't have at least two good specimen, randomizing")
 			[car.driver.randomize() for car in self.cars]
 			return
 		best = cars[0]
 		runnerup = cars[1]
-		self.cars = [Car() for i in range(10)]
+		#print("best section: %d, runnerup section: %d" % (best.section_idx, runnerup.section_idx))
 		self.cars[0].driver.copy(best.driver)
 		self.cars[1].driver.copy(runnerup.driver)
-		[car.driver.copy(best.driver) for car in self.cars[2:6]]
-		[car.driver.copy(runnerup.driver) for car in self.cars[6:]]
-		for i in range(4):
+		to_mutate = (self.carnum - 2) // 2
+		[car.driver.copy(best.driver) for car in self.cars[2:2+to_mutate]]
+		[car.driver.copy(runnerup.driver) for car in self.cars[2+to_mutate:]]
+		for i in range(to_mutate):
 			#print("mutating a pair of cars. severity: %d, chance: %d" % (5*(i+1), 100-25*i))
-			self.cars[i+2].driver.mutate(0.05*(i+1), 1-0.25*i)
-			self.cars[i+2+4].driver.mutate(0.05*(i+1), 1-0.25*i)
+			severity = 0.25 * i/to_mutate
+			chance = 1 - i/to_mutate
+			self.cars[i+2].driver.mutate(severity, chance)
+			self.cars[i+2+to_mutate].driver.mutate(severity, chance)
 		#print("copied and mutated!")
-		return True
 
 	def set_and_get_avg_time(self, cat, time, limit=10):
 		self.times[cat].append(time)
@@ -79,23 +86,26 @@ class Simulator(pyglet.window.Window):
 
 	def _update(self, dt):
 		dt = min(dt, 1/30) # slow down time instead of "dropping" frames and having quick jumps in space
+		dt = 1/60
 		self.time += dt
 		t1 = time.time()
 		for key in self.keystate:
 			if self.keystate[key]:
 				self.dispatch_event('on_key_press', key, False)
 		[car.update(dt) for car in self.cars]
-		if all(car.collided for car in self.cars):
-			created_cars = self.evolve()
-			self.start(not created_cars)
-			return
-		leader = sorted(self.cars, key=operator.attrgetter('section_idx'))[-1]
-		if self.car.section_idx < leader.section_idx:
-			self.car = leader
+		if len(self.cars):
+			if all(car.collided for car in self.cars):
+				self.evolve()
+				self.start()
+				return
+			leader = sorted(self.cars, key=operator.attrgetter('section_idx'))[-1]
+			if self.car.section_idx < leader.section_idx:
+				self.car = leader
+		else:
+			self.car.update(dt)
 		t2 = time.time()
-		#self.car.update(dt)
-		#self.x = self.car.x
-		#self.y = self.car.y
+		self.x = self.car.x
+		self.y = self.car.y
 		self.counter += 1
 		#if self.counter % 10: return
 		self.draw()
@@ -106,7 +116,7 @@ class Simulator(pyglet.window.Window):
 		updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
 		carupdate = self.car.times['string']
 		#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
-		self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
+		#self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
 
 	def setup2d_init(self):
 		"""
@@ -143,10 +153,13 @@ class Simulator(pyglet.window.Window):
 
 		self.setup2d_camera()
 		self.track.draw()
-		#self.car.draw()
-		[car.draw() for car in self.cars]
-		#self.car.draw_section()
-		#self.car.draw_points()
+		if len(self.cars):
+			[car.draw() for car in self.cars]
+		else:
+			self.car.draw()
+			self.car.draw_section()
+			self.car.update_points()
+			self.car.draw_points()
 		#self.car.draw_cameras()
 
 	def draw_labels(self):
@@ -157,7 +170,7 @@ class Simulator(pyglet.window.Window):
 		self.info_label.draw()
 		self.car.draw_labels()
 		#self.track.draw_labels()
-		
+
 	def on_key_press(self, symbol, modifier):
 		if symbol == key.ESCAPE:
 			self.close()
@@ -192,15 +205,10 @@ class Simulator(pyglet.window.Window):
 			self.car.check_collision()
 			self.keystate[symbol] = False
 		elif symbol == key.R:
-			self.start()
-			return
-			self.car.x = 0
-			self.car.y = 0
-			self.car.rot = 0
-			self.car.speed = 0
-			self.car.update(0)
-			self.car.change_section(0)
-			self.car.rotate(0)
+			if len(self.cars):
+				self.start()
+				return
+			self.car.put_on_track(self.track)
 		elif symbol == key.N:
 			self.car.change_section(self.car.section_idx + 1)
 			self.keystate[symbol] = False
@@ -213,7 +221,18 @@ class Simulator(pyglet.window.Window):
 			self.car.steering = 0
 
 if __name__ == "__main__":
-	simulator = Simulator(width=900)
-	simulator.start(True)
+	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+	parser.add_argument('-m', '--manual', action="store_true", default=False,
+		help="Drive the car yourself")
+	parser.add_argument('-n', '--cars', action="store", type=int, default=10,
+		help="Number of cars to train")
+	parser.add_argument('--window-size', action="store", nargs=2, dest='wsize', metavar=('WIDTH', 'HEIGHT'), default=(960, 540))
+	parser.add_argument('--width', action="store", default=None)
+	parser.add_argument('--height', action="store", default=None)
+	args = parser.parse_args()
+
+	simulator = Simulator(width=args.width or args.wsize[0], height=args.height or args.wsize[1], carnum=args.cars)
+	if not args.manual:
+		simulator.start(True)
 	pyglet.app.run()
-	print()
+	#print()
