@@ -108,7 +108,9 @@ class Car(Entity):
 		corner_angle = math.atan(self.width / self.height)
 		self.cameras = [Camera(self, 0, 175), Camera(self, corner_angle, 100), Camera(self, -corner_angle, 100),
 						Camera(self, 3 * corner_angle, 50), Camera(self, -3 * corner_angle, 50),
-						Camera(self, math.pi/2, 30), Camera(self, -math.pi/2, 30)]
+						Camera(self, math.pi/2, 30), Camera(self, -math.pi/2, 30)
+						]
+		#self.cameras = [Camera(self, 0,175)]
 
 		self.start_time = time.time()
 		self.time = 0
@@ -189,9 +191,9 @@ class Car(Entity):
 		self.time += dt
 		#self.iters = (self.iters + 1) % 10
 		t0 = time.time()
-		if time.time() - self.last_action  > self.action_rate:
+		if self.time - self.last_action  > self.action_rate:
 			self.make_action()
-			self.last_action = time.time()
+			self.last_action = self.time
 		t1 = time.time()
 		self.rotate(dt)
 		t2 = time.time()

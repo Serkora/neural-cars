@@ -134,7 +134,7 @@ class Track(Entity):
 		#points = [(0, 100), (20, 150), (50, 250), (100, 280), (150, 300)]
 		points = [(0, 100), (20, 150), (50, 250), (100, 260), (160, 230),
 				(180,180), (180, 120), (200, 50), (200, 20), 
-				(100, -120), (20, -90), (0, -40), (0,0)]
+				(100, -120), (20, -90), (0, -40)]
 		prev_quad = Quad(box=Box(0, 50, self.width, 50))
 		#prev_quad = Quad(coords=((0,0),(0,self.width),(0,50),(self.width,50)))
 		for point in points:
@@ -142,6 +142,8 @@ class Track(Entity):
 			self.add_section(quad=prev_quad)
 			prev_quad = new_quad
 		self.add_section(quad=prev_quad)
+		quad = Quad(coords=(prev_quad.top_left, prev_quad.top_right, self.sections[0].quad.bottom_left, self.sections[0].quad.bottom_right))
+		self.add_section(quad)
 		self.circular = True
 
 	def make_section_quad(self, point, previous, width=None):

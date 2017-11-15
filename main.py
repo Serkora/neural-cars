@@ -16,11 +16,13 @@ def vec(*args):
 	return (GLfloat * len(args))(*args)
 
 class Simulator(pyglet.window.Window):
-	def __init__(self, *args, carnum=10, **kwargs):
+	def __init__(self, *args, manual=False, carnum=10, **kwargs):
 		config = pyglet.gl.Config(*args, sample_buffers=1, samples=1, depth_size=16, double_buffer=True, **kwargs)
-		super().__init__(*args, config=config, resizable=True, vsync=True, **kwargs)
+		super().__init__(*args, config=config, resizable=True, vsync=False, **kwargs)
 		self.keystate = key.KeyStateHandler()
 		self.push_handlers(self.keystate)
+
+		self.manual = manual
 
 		self.carnum = carnum // 2 * 2 # need even number
 		self.cars = []
@@ -40,7 +42,7 @@ class Simulator(pyglet.window.Window):
 		self.y = 0
 		self.scale = 1
 
-		pyglet.clock.schedule_interval(self._update, 1.0 / 60)
+		pyglet.clock.schedule_interval(self._update, 1.0 / 120)
 
 	def setup_labels(self):
 		self.time_label = pyglet.text.Label(text="", x=10, y=self.height-20)
@@ -62,20 +64,18 @@ class Simulator(pyglet.window.Window):
 			#print("Don't have at least two good specimen, randomizing")
 			[car.driver.randomize() for car in self.cars]
 			return
-		best = cars[0]
-		runnerup = cars[1]
-		#print("best section: %d, runnerup section: %d" % (best.section_idx, runnerup.section_idx))
-		self.cars[0].driver.copy(best.driver)
-		self.cars[1].driver.copy(runnerup.driver)
+			pass
+		best = cars[0].driver
+		runnerup = cars[1].driver
 		to_mutate = (self.carnum - 2) // 2
-		[car.driver.copy(best.driver) for car in self.cars[2:2+to_mutate]]
-		[car.driver.copy(runnerup.driver) for car in self.cars[2+to_mutate:]]
-		for i in range(to_mutate):
-			#print("mutating a pair of cars. severity: %d, chance: %d" % (5*(i+1), 100-25*i))
+		#print("best section: %d, runnerup section: %d" % (best.section_idx, runnerup.section_idx))
+		for i, pair in enumerate(zip(self.cars[::2], self.cars[1::2])):
 			severity = 0.25 * i/to_mutate
 			chance = 1 - i/to_mutate
-			self.cars[i+2].driver.mutate(severity, chance)
-			self.cars[i+2+to_mutate].driver.mutate(severity, chance)
+			pair[0].driver.learn_from(best, mutate=i, chance=chance, severity=severity)
+			pair[1].driver.learn_from(runnerup, mutate=i, chance=chance, severity=severity)
+		#print("cars[0] == best: %s" % (self.cars[0].driver.network.layers[1].neurons[0].weights == best.driver.network.layers[1].neurons[0].weights))
+		#print("cars[0] %d, best: %d" % (id(self.cars[0].driver.network.layers[1].neurons[0].weights), id(best.driver.network.layers[1].neurons[0].weights)))
 		#print("copied and mutated!")
 
 	def set_and_get_avg_time(self, cat, time, limit=10):
@@ -86,7 +86,7 @@ class Simulator(pyglet.window.Window):
 
 	def _update(self, dt):
 		dt = min(dt, 1/30) # slow down time instead of "dropping" frames and having quick jumps in space
-		dt = 1/60
+		#dt = 1/30
 		self.time += dt
 		t1 = time.time()
 		for key in self.keystate:
@@ -106,17 +106,14 @@ class Simulator(pyglet.window.Window):
 		t2 = time.time()
 		self.x = self.car.x
 		self.y = self.car.y
-		self.counter += 1
-		#if self.counter % 10: return
 		self.draw()
 		t3 = time.time()
-		#print("\rdraw: %.3f, update: %.3f, dt = %.3f" % (t3 - t2, t2 - t1, dt), end="")
-		#self.info_label.text = "\rdraw: %.3f, update: %.3f, dt = %.3f" % (t3 - t2, t2 - t1, dt)
-		drawtime = self.set_and_get_avg_time('draw', t3 - t2, 5)
-		updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
-		carupdate = self.car.times['string']
-		#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
-		#self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
+		if self.manual:
+			drawtime = self.set_and_get_avg_time('draw', t3 - t2, 5)
+			updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
+			carupdate = self.car.times['string']
+			#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
+			self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
 
 	def setup2d_init(self):
 		"""
@@ -159,8 +156,8 @@ class Simulator(pyglet.window.Window):
 			self.car.draw()
 			self.car.draw_section()
 			self.car.update_points()
-			self.car.draw_points()
-		#self.car.draw_cameras()
+			#self.car.draw_points()
+			#self.car.draw_cameras()
 
 	def draw_labels(self):
 		self.time_label.text = "Time: %.3f" % self.time
@@ -231,7 +228,7 @@ if __name__ == "__main__":
 	parser.add_argument('--height', action="store", default=None)
 	args = parser.parse_args()
 
-	simulator = Simulator(width=args.width or args.wsize[0], height=args.height or args.wsize[1], carnum=args.cars)
+	simulator = Simulator(manual=args.manual, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
 	if not args.manual:
 		simulator.start(True)
 	pyglet.app.run()

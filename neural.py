@@ -42,15 +42,16 @@ class Driver(object):
 		#print("\rputput = %.3f" % output, end="")
 		return steering + 1 * output
 
-	def copy(self, driver):
-		self.network = driver.network.copy()
-
 	def mutate(self, severity, chance):
 		for layer in self.network.layers:
 			if random.random() < chance:
 				for neuron in layer.neurons:
 					neuron.weights += neuron.weights * np.random.uniform(-severity/2, severity/2, neuron.weights.size)
 
+	def learn_from(self, driver, mutate=False, chance=0, severity=0):
+		self.network = driver.network.copy()
+		if mutate:
+			self.mutate(severity, chance)
 
 		# minimalist tanh network
 
@@ -110,12 +111,10 @@ class Network(object):
 		self.inputs = inputs
 		self.outputs = layers[-1]
 		self.activation = activation
-		self.layers = [Layer(inputs, inputs)]
-		for neurons in layers[:-1]:
+		self.layers = [Layer(inputs, inputs, activation)]
+		for neurons in layers:
 			self.layers.append(Layer(inputs, neurons, activation))
 			inputs = len(self.layers[-1].neurons)
-		# output will just be a sum of all inputs
-		self.layers.append(Layer(inputs, layers[-1], activation='unit'))
 
 	def predict(self, inputs):
 		outputs = np.array(inputs)
@@ -128,7 +127,7 @@ class Network(object):
 			layer.randomize()
 
 	def copy(self):
-		network = self.__class__(self.inputs, 1, activation=self.activation)
+		network = self.__class__(self.inputs, self.outputs, activation=self.activation)
 		network.layers = [layer.copy() for layer in self.layers]
 		return network
 

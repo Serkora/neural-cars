@@ -139,7 +139,7 @@ class Line(Entity):
 		return False
 
 	def intersects(self, line):
-		return graphtools.lines_intersect(self, line)
+		return graphtools.line_intersection(self, line)
 
 	def intersection(self, line):
 		return graphtools.line_intersection(self, line)
