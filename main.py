@@ -16,13 +16,15 @@ def vec(*args):
 	return (GLfloat * len(args))(*args)
 
 class Simulator(pyglet.window.Window):
-	def __init__(self, *args, manual=False, carnum=10, **kwargs):
+	def __init__(self, *args, settings=None, carnum=10, **kwargs):
 		config = pyglet.gl.Config(*args, sample_buffers=1, samples=1, depth_size=16, double_buffer=True, **kwargs)
 		super().__init__(*args, config=config, resizable=True, vsync=False, **kwargs)
 		self.keystate = key.KeyStateHandler()
 		self.push_handlers(self.keystate)
 
-		self.manual = manual
+		self.settings = defaultdict(bool)
+		if type(settings) == dict:
+			self.settings.update(settings)
 
 		self.carnum = carnum // 2 * 2 # need even number
 		self.cars = []
@@ -108,7 +110,7 @@ class Simulator(pyglet.window.Window):
 		self.y = self.car.y
 		self.draw()
 		t3 = time.time()
-		if self.manual:
+		if self.settings['manual']:
 			drawtime = self.set_and_get_avg_time('draw', t3 - t2, 5)
 			updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
 			carupdate = self.car.times['string']
@@ -152,12 +154,13 @@ class Simulator(pyglet.window.Window):
 		self.track.draw()
 		if len(self.cars):
 			[car.draw() for car in self.cars]
-		else:
+		if self.settings['manual']:
 			self.car.draw()
 			self.car.draw_section()
 			self.car.update_points()
 			#self.car.draw_points()
-			#self.car.draw_cameras()
+			if self.settings['cameras']:
+				self.car.draw_cameras()
 
 	def draw_labels(self):
 		self.time_label.text = "Time: %.3f" % self.time
@@ -219,16 +222,19 @@ class Simulator(pyglet.window.Window):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-	parser.add_argument('-m', '--manual', action="store_true", default=False,
-		help="Drive the car yourself")
 	parser.add_argument('-n', '--cars', action="store", type=int, default=10,
 		help="Number of cars to train")
 	parser.add_argument('--window-size', action="store", nargs=2, dest='wsize', metavar=('WIDTH', 'HEIGHT'), default=(960, 540))
 	parser.add_argument('--width', action="store", default=None)
 	parser.add_argument('--height', action="store", default=None)
+	parser.add_argument('-m', '--manual', action="store_true", default=False,
+		help="Drive the car yourself")
+	parser.add_argument('-c', '--cameras', action="store_true", default=False,
+		help="Show camera lines and points")
 	args = parser.parse_args()
 
-	simulator = Simulator(manual=args.manual, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
+	settings = {k:getattr(args, k) for k in ['manual', 'cameras']}
+	simulator = Simulator(settings=settings, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
 	if not args.manual:
 		simulator.start(True)
 	pyglet.app.run()

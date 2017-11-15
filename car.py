@@ -36,7 +36,7 @@ class Camera(object):
 		i = self.car.section_idx
 		while True:
 			if i < 0 or i >= len(self.car.track.sections):
-				break
+				i %= len(self.car.track.sections)
 			section = self.car.track.sections[i]
 			if graphtools.left_of(self.line.angle, section.quad.line.angle):
 				self.focus = section.quad.left.intersection(self.line)
