@@ -2,105 +2,46 @@ import math
 import time
 from collections import defaultdict
 import pyglet
+import numpy as np
 
 import graphtools
 import neural
 from drawables import *
-from cext import ctrack
+from cext import cmodule
 
 car_batch = None
 
-class Camera(object):
-	def __init__(self, car, direction, max_dist, origin=(0,0)):
+class SensorRig(object):
+	def __init__(self, car, angles, distances):
+		if len(angles) != len(distances):
+			raise ValueError("Number of angles and distances provided must match")
 		self.car = car
-		self.max_dist = max_dist
-		self.direction = direction
-		self.origin = Point(*origin)
-		self.line = Line(self.origin, angle=self.angle, length=self.max_dist)
-		self.focus = self.line.end
-		self.distance = self.max_dist
+		self.angles = np.array(angles)
+		self.max_distances = distances
+		self.distances = self.max_distances[:] # copy just in case
+		#self.points = [(0,0)] * len(self.distances)
+		self.caddr = cmodule.store_sensors(self.angles, self.max_distances)
+
+	def __del__(self):
+		cmodule.delete_sensors(self.caddr)
+
+	def get_distances(self, position, rotation, section_idx):
+		self.distances = cmodule.find_track_intersection(self.caddr, position, rotation, section_idx)
+
+	def reset(self):
+		self.distances = self.max_distances[:]
+		#self.points = [(0,0)] * len(self.distances)
 
 	@property
-	def angle(self):
-		return self.car.rot + self.direction
-	
-	def	update(self):
-		#self.line = Line(self.origin, angle=self.angle, length=self.max_dist).moved(*self.car.position)
-		#self.line = Line(self.origin, angle=self.angle, length=self.max_dist)
-		#self.line.move(*self.car.position)
-		t1 = time.time()
-		#self.line = Line(self.car.position, angle=self.angle, length=self.max_dist)
-		t2 = time.time()
-		#self.get_focus()
-		self.get_focus_new()
-		t3 = time.time()
-		self.car.set_and_get_avg_time("crline", (t2-t1))
-		self.car.set_and_get_avg_time("focus", (t3-t2))
-
-	def get_focus_new(self):
-		t1 = time.time()
-		point = ctrack.test2(self.line.coords, self.car.section_idx)
-		t2 = time.time()
-		if point:
-			#self.focus = Point(*point)
-			self.focus = point
-			self.distance = ((self.focus[0] - self.car.x) ** 2 + (self.focus[1] - self.car.y) ** 2) ** 0.5
-		else:
-			self.focus = self.line.end
-			self.distance = self.max_dist
-		t3 = time.time()
-		self.car.set_and_get_avg_time("focint", (t2-t1))
-		self.car.set_and_get_avg_time("focdist", (t3-t2))
-
-	def get_focus(self):
-		last_border = None
-		i = self.car.section_idx
-		while True:
-			t1 = time.time()
-			if i < 0 or i >= len(self.car.track.sections):
-				i %= len(self.car.track.sections)
-			section = self.car.track.sections[i]
-			t2 = time.time()
-			if graphtools.left_of(self.line.angle, section.quad.line.angle):
-				self.focus = self.line.intersection(section.quad.left)
-			else:
-				self.focus = self.line.intersection(section.quad.right)
-			t3 = time.time()
-
-			if self.focus:
-				#self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
-				#self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
-				#self.focus = Point(*self.focus)
-				#self.distance = ((self.focus.x - self.car.position.x) ** 2 + (self.focus.y - self.car.position.y) ** 2) ** 0.5
-				self.distance = ((self.focus[0] - self.car.x) ** 2 + (self.focus[1] - self.car.y) ** 2) ** 0.5
-				t4 = time.time()
-				self.car.set_and_get_avg_time('secsel', (t2 - t1))
-				self.car.set_and_get_avg_time('focint', (t3 - t2))
-				self.car.set_and_get_avg_time('focdist', (t4 - t3))
-				return
-
-			if last_border != "back" and self.line.intersects(section.quad.front):
-				last_border = "front"
-				i += 1
-			elif last_border != "front" and self.line.intersects(section.quad.back):
-				last_border = "back"
-				i -= 1
-			else:
-				t5 = time.time()
-				self.car.set_and_get_avg_time('secsel', (t2 - t1))
-				self.car.set_and_get_avg_time('focint', (t3 - t2))
-				self.car.set_and_get_avg_time('bordint', (t5 - t3))
-				break
-			t5 = time.time()
-			self.car.set_and_get_avg_time('secsel', (t2 - t1))
-			self.car.set_and_get_avg_time('focint', (t3 - t2))
-			self.car.set_and_get_avg_time('bordint', (t5 - t3))
-			t5 = time.time()
-		self.focus = self.line.end
-		self.distance = self.max_dist
+	def points(self):
+		if not self.distances:
+			return []
+		x = np.array([self.car.x] * len(self.angles)) + np.sin(self.angles+self.car.rot) * self.distances
+		y = np.array([self.car.y] * len(self.angles)) + np.cos(self.angles+self.car.rot) * self.distances
+		return zip(x,y)
 
 class Car(Entity):
-	def __init__(self, human=False):
+	def __init__(self, human=False, sensors=None):
 		super().__init__()
 
 		self.max_speed = 150
@@ -133,22 +74,30 @@ class Car(Entity):
 
 		self.construct()
 		corner_angle = math.atan(self.width / self.height)
-		self.cameras = [Camera(self, 0, 175), Camera(self, corner_angle, 100), Camera(self, -corner_angle, 100),
-						Camera(self, 3 * corner_angle, 50), Camera(self, -3 * corner_angle, 50),
-						Camera(self, math.pi/2, 30), Camera(self, -math.pi/2, 30)
-						]
-		self.cameras = [Camera(self, 0,175)] * 9
+		if not sensors:
+			self.sensors = SensorRig(self,
+				(-math.pi/2, -3 * corner_angle, -corner_angle, 
+				0,
+				corner_angle, 3 * corner_angle, math.pi/2),
+				(30, 50, 100, 175, 100, 50, 30))
+		elif sensors == 1:
+			self.sensors = SensorRig(self, (0,), (175,))
+		else:
+			n = sensors // 2 * 2 + 1
+			angles = tuple(-math.pi/2 + i*math.pi/(n-1) for i in range(n))
+			distances = (100,) * n
+			self.sensors = SensorRig(self, angles, distances)
 
 		self.start_time = time.time()
 		self.time = 0
 		self.last_action = 0
 		self.action_rate = 0.1 # only do something once every 100ms
-		self.driver = neural.Driver(2+len(self.cameras)) # neural network
+		self.driver = neural.Driver(2+len(self.sensors.distances)) # neural network
 		self.human = human
 
 		self.times = defaultdict(list)
 
-	def set_and_get_avg_time(self, cat, time, limit=10):
+	def set_and_get_avg_time(self, cat, time, limit=20):
 		self.times[cat].append(time)
 		if len(self.times[cat]) > limit:
 			self.times[cat].pop(0)
@@ -187,11 +136,8 @@ class Car(Entity):
 	def draw(self):
 		super().draw()
 
-		glLoadIdentity()
-		#self.draw_points()
-		#self.draw_cameras()
-
 	def draw_section(self):
+		glLoadIdentity()
 		self.section_batch.draw()
 
 	def draw_labels(self):
@@ -201,14 +147,12 @@ class Car(Entity):
 		glPointSize(5)
 		self.points_batch.draw()
 
-	def draw_cameras(self):
+	def draw_sensors(self):
 		glLoadIdentity()
 		glPointSize(5)
-		for camera in self.cameras:
-			pyglet.graphics.draw(2, pyglet.gl.GL_LINES,
-				('v2f', camera.line.coords))
+		for point in self.sensors.points:
 			pyglet.graphics.draw(1, pyglet.gl.GL_POINTS,
-				('v2f', camera.focus))
+				('v2f', point))
 
 	def update(self, dt):
 		if self.collided: return
@@ -238,30 +182,23 @@ class Car(Entity):
 		t4 = time.time()
 		self.check_section_change()
 		t5 = time.time()
-		[camera.update() for camera in self.cameras]
+		#self.sensors.get_distances((self.x, self.y), self.rot, self.section_idx)
+		self.sensors.distances = cmodule.find_track_intersection(self.sensors.caddr, (self.x, self.y), self.rot, self.section_idx)
 		t6 = time.time()
 		a = 1000 * self.set_and_get_avg_time('action', t1 - t0)
 		r = 1000 * self.set_and_get_avg_time('rotate', t2 - t1)
 		m = 1000 * self.set_and_get_avg_time('move', t3 - t2)
 		c = 1000 * self.set_and_get_avg_time('collision', t4 - t3)
 		s = 1000 * self.set_and_get_avg_time('section_change', t5 - t4)
-		d = 1000 * self.set_and_get_avg_time('camera', t6 - t5)
-		self.times['string'] = "act=%.3f,move=%.3f, rot=%.3f, coll=%.3f,cam=%.3f,sec=%.3f" % (a, m, r, c, d, s)
-		l = 1000 * self.get_avg_time('crline')
-		f = 1000 * self.get_avg_time('focus')
-		s = 1000 * self.get_avg_time('secsel')
-		fi = 1000 * self.get_avg_time('focint')
-		fd = 1000 * self.get_avg_time('focdist')
-		bi = 1000 * self.get_avg_time('bordint')
-		self.times['string'] = "crline:%.3f,focus:%.3f,secsel:%.3f,focint:%.3f,focdist:%.3f,bordint:%.3f" % (l, f, s, fi, fd, bi)
-		#self.info_label.text = "action: %.5f, move: %.5f, rotate: %.5f, section change: %.5f" % (
-		#	(t2 - t1, t3 - t2, t4 - t3, t5 - t4))
+		d = 1000 * self.set_and_get_avg_time('sensors', t6 - t5, limit=1)
+		self.times['string'] = "act=%.3f,move=%.3f, rot=%.3f, coll=%.3f,sen=%.3f,sec=%.3f" % (a, m, r, c, d, s)
 
 	def make_action(self):
+		return
 		if self.human:
 			return
 		# feed the data to the neural network
-		distances = [camera.distance for camera in self.cameras]
+		distances = self.sensors.distances
 		self.steering = self.driver.compute(self.speed, self.steering, *distances) #0-0.5 is left, 0.5-1 is right
 		if self.steering > 1:
 			self.steering = 1
@@ -294,8 +231,6 @@ class Car(Entity):
 		self.bottom_left = self.bottom_left.shifted(delta_x, delta_y)
 		self.bottom_right = self.bottom_right.shifted(delta_x, delta_y)
 
-		#[camera.update() for camera in self.cameras]
-
 	def rotate(self, dt):
 		if not self.steering:
 			return
@@ -305,7 +240,6 @@ class Car(Entity):
 		self.prev_rot = self.rot
 
 		self.rotate_corners()
-		#[camera.update() for camera in self.cameras]
 	
 	def rotate_corners(self):
 		new_left = Line(self.position, angle=-self.corner_angle + self.rot, length=self.corner_distance).end
@@ -334,7 +268,7 @@ class Car(Entity):
 		self.reset_corners()
 		self.speed = 0
 		self.last_action = 0
-		[camera.update() for camera in self.cameras]
+		self.sensors.reset()
 		self.start_time = time.time()
 
 	def change_section(self, idx):

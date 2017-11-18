@@ -28,8 +28,9 @@ class Simulator(pyglet.window.Window):
 
 		self.carnum = carnum // 2 * 2 # need even number
 		self.cars = []
-		self.car = Car(human=True) # will be deleted later if simulation starts
+		self.car = Car(human=True, sensors=self.settings['sensors']) # will be deleted later if simulation starts
 		self.track = Track()
+		self.track.set_ctrack()
 		self.car.put_on_track(self.track)
 		self.generation = 1
 
@@ -110,10 +111,13 @@ class Simulator(pyglet.window.Window):
 		self.y = self.car.y
 		self.draw()
 		t3 = time.time()
-		if self.settings['manual']:
+		if self.settings['timings'] or self.settings['manual']:
 			drawtime = self.set_and_get_avg_time('draw', t3 - t2, 5)
 			updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
-			carupdate = self.car.times['string']
+			if self.settings['manual']:
+				carupdate = self.car.times['string']
+			else:
+				carupdate = ""
 			#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
 			self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
 
@@ -160,7 +164,7 @@ class Simulator(pyglet.window.Window):
 			self.car.update_points()
 			#self.car.draw_points()
 			if self.settings['cameras']:
-				self.car.draw_cameras()
+				self.car.draw_sensors()
 
 	def draw_labels(self):
 		self.time_label.text = "Time: %.3f" % self.time
@@ -233,9 +237,13 @@ if __name__ == "__main__":
 		help="Show camera lines and points")
 	parser.add_argument('--still', action="store_true", default=False,
 		help="Don't move cars")
+	parser.add_argument('-t', '--timings', action="store_true", default=False,
+		help="Show various timings")
+	parser.add_argument('-s', '--sensors', action="store", type=int, default=0,
+		help="Number of sensors that span [-math.pi, math.pi]")
 	args = parser.parse_args()
 
-	settings = {k:getattr(args, k) for k in ['manual', 'cameras']}
+	settings = {k:getattr(args, k) for k in ['manual', 'cameras', 'timings', 'sensors']}
 	simulator = Simulator(settings=settings, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
 	if not args.manual:
 		simulator.start(True)
