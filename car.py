@@ -6,6 +6,7 @@ import pyglet
 import graphtools
 import neural
 from drawables import *
+from cext import ctrack
 
 car_batch = None
 
@@ -27,27 +28,55 @@ class Camera(object):
 		#self.line = Line(self.origin, angle=self.angle, length=self.max_dist).moved(*self.car.position)
 		#self.line = Line(self.origin, angle=self.angle, length=self.max_dist)
 		#self.line.move(*self.car.position)
-		self.line = Line(self.car.position, angle=self.angle, length=self.max_dist)
+		t1 = time.time()
+		#self.line = Line(self.car.position, angle=self.angle, length=self.max_dist)
+		t2 = time.time()
 		#self.get_focus()
 		self.get_focus_new()
+		t3 = time.time()
+		self.car.set_and_get_avg_time("crline", (t2-t1))
+		self.car.set_and_get_avg_time("focus", (t3-t2))
 
 	def get_focus_new(self):
+		t1 = time.time()
+		point = ctrack.test2(self.line.coords, self.car.section_idx)
+		t2 = time.time()
+		if point:
+			#self.focus = Point(*point)
+			self.focus = point
+			self.distance = ((self.focus[0] - self.car.x) ** 2 + (self.focus[1] - self.car.y) ** 2) ** 0.5
+		else:
+			self.focus = self.line.end
+			self.distance = self.max_dist
+		t3 = time.time()
+		self.car.set_and_get_avg_time("focint", (t2-t1))
+		self.car.set_and_get_avg_time("focdist", (t3-t2))
+
+	def get_focus(self):
 		last_border = None
 		i = self.car.section_idx
 		while True:
+			t1 = time.time()
 			if i < 0 or i >= len(self.car.track.sections):
 				i %= len(self.car.track.sections)
 			section = self.car.track.sections[i]
+			t2 = time.time()
 			if graphtools.left_of(self.line.angle, section.quad.line.angle):
-				self.focus = section.quad.left.intersection(self.line)
+				self.focus = self.line.intersection(section.quad.left)
 			else:
-				self.focus = section.quad.right.intersection(self.line)
+				self.focus = self.line.intersection(section.quad.right)
+			t3 = time.time()
 
 			if self.focus:
 				#self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
 				#self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
-				self.focus = Point(*self.focus)
-				self.distance = ((self.focus.x - self.car.position.x) ** 2 + (self.focus.y - self.car.position.y) ** 2) ** 0.5
+				#self.focus = Point(*self.focus)
+				#self.distance = ((self.focus.x - self.car.position.x) ** 2 + (self.focus.y - self.car.position.y) ** 2) ** 0.5
+				self.distance = ((self.focus[0] - self.car.x) ** 2 + (self.focus[1] - self.car.y) ** 2) ** 0.5
+				t4 = time.time()
+				self.car.set_and_get_avg_time('secsel', (t2 - t1))
+				self.car.set_and_get_avg_time('focint', (t3 - t2))
+				self.car.set_and_get_avg_time('focdist', (t4 - t3))
 				return
 
 			if last_border != "back" and self.line.intersects(section.quad.front):
@@ -57,18 +86,16 @@ class Camera(object):
 				last_border = "back"
 				i -= 1
 			else:
+				t5 = time.time()
+				self.car.set_and_get_avg_time('secsel', (t2 - t1))
+				self.car.set_and_get_avg_time('focint', (t3 - t2))
+				self.car.set_and_get_avg_time('bordint', (t5 - t3))
 				break
-		self.focus = self.line.end
-		self.distance = self.max_dist
-
-	def get_focus(self):
-		start = max(self.car.section_idx - 2, 0)
-		end = min(self.car.section_idx + 3, len(self.car.track.sections))
-		for section in self.car.track.sections[start:end]:
-			self.focus = section.quad.left.intersection(self.line) or section.quad.right.intersection(self.line)
-			if self.focus:
-				self.distance = Line(self.origin.shifted(*self.car.position), self.focus).length
-				return
+			t5 = time.time()
+			self.car.set_and_get_avg_time('secsel', (t2 - t1))
+			self.car.set_and_get_avg_time('focint', (t3 - t2))
+			self.car.set_and_get_avg_time('bordint', (t5 - t3))
+			t5 = time.time()
 		self.focus = self.line.end
 		self.distance = self.max_dist
 
@@ -110,7 +137,7 @@ class Car(Entity):
 						Camera(self, 3 * corner_angle, 50), Camera(self, -3 * corner_angle, 50),
 						Camera(self, math.pi/2, 30), Camera(self, -math.pi/2, 30)
 						]
-		#self.cameras = [Camera(self, 0,175)]
+		self.cameras = [Camera(self, 0,175)] * 9
 
 		self.start_time = time.time()
 		self.time = 0
@@ -126,6 +153,9 @@ class Car(Entity):
 		if len(self.times[cat]) > limit:
 			self.times[cat].pop(0)
 		return sum(self.times[cat]) / len(self.times[cat])
+
+	def get_avg_time(self, cat):
+		return len(self.times[cat]) and sum(self.times[cat]) / len(self.times[cat]) or 0
 
 	def construct(self):
 		global car_batch
@@ -217,6 +247,13 @@ class Car(Entity):
 		s = 1000 * self.set_and_get_avg_time('section_change', t5 - t4)
 		d = 1000 * self.set_and_get_avg_time('camera', t6 - t5)
 		self.times['string'] = "act=%.3f,move=%.3f, rot=%.3f, coll=%.3f,cam=%.3f,sec=%.3f" % (a, m, r, c, d, s)
+		l = 1000 * self.get_avg_time('crline')
+		f = 1000 * self.get_avg_time('focus')
+		s = 1000 * self.get_avg_time('secsel')
+		fi = 1000 * self.get_avg_time('focint')
+		fd = 1000 * self.get_avg_time('focdist')
+		bi = 1000 * self.get_avg_time('bordint')
+		self.times['string'] = "crline:%.3f,focus:%.3f,secsel:%.3f,focint:%.3f,focdist:%.3f,bordint:%.3f" % (l, f, s, fi, fd, bi)
 		#self.info_label.text = "action: %.5f, move: %.5f, rotate: %.5f, section change: %.5f" % (
 		#	(t2 - t1, t3 - t2, t4 - t3, t5 - t4))
 

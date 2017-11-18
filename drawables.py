@@ -41,7 +41,7 @@ class Point(tuple):
 	def translated(self, angle, distance):
 		return Point(self.x + distance*math.sin(angle), self.y + distance*math.cos(angle))
 
-class Line(Entity):
+class Line(object):
 	def __init__(self, start, end=None, angle=None, length=0):
 		self._start = Point(*start)
 		if angle is not None:
@@ -54,9 +54,9 @@ class Line(Entity):
 		self._centre = None
 		self._quadrant = None
 		self._length = None
+		self._coords = None
 
 		self.quadrant = self.get_quadrant()
-		self.centre = self.get_centre()
 
 	def __len__(self):
 		return 4
@@ -74,6 +74,9 @@ class Line(Entity):
 
 	@property
 	def coords(self):
+		#if not self._coords:
+		#	self._coords = self.start + self.end # tuple of length 4 for both points
+		#return self._coords
 		return self.start + self.end # tuple of length 4 for both points
 
 	@property
@@ -95,6 +98,12 @@ class Line(Entity):
 		elif self.quadrant == 3:
 			self._angle = math.pi + math.atan((self.end.x - self.start.x) / ((self.end.y - self.start.y) or 0.000001))
 		return self._angle
+
+	@property
+	def centre(self):
+		if not self._centre:
+			self._centre = self.get_centre()
+		return self._centre
 
 	def get_centre(self):
 		return Point(*(sum(e) / 2 for e in zip(self.start, self.end)))
@@ -129,7 +138,7 @@ class Line(Entity):
 	def move(self, delta_x, delta_y):
 		self._start = self.start.shifted(delta_x, delta_y)
 		self._end = self.end.shifted(delta_x, delta_y)
-		self.centre = self.centre.shifted(delta_x, delta_y)
+		#self._centre = self._centre.shifted(delta_x, delta_y)
 
 	def point_on_line(self, point, tol=math.pi/180):
 		l1 = Line(self.start, point)
@@ -139,10 +148,10 @@ class Line(Entity):
 		return False
 
 	def intersects(self, line):
-		return graphtools.line_intersection(self, line)
+		return graphtools.line_intersection(self.coords, line.coords)
 
 	def intersection(self, line):
-		return graphtools.line_intersection(self, line)
+		return graphtools.line_intersection(self.coords, line.coords)
 
 class DBox(Entity):
 	def __init__(self, x, y, width, height):

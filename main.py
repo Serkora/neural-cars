@@ -225,17 +225,23 @@ if __name__ == "__main__":
 	parser.add_argument('-n', '--cars', action="store", type=int, default=10,
 		help="Number of cars to train")
 	parser.add_argument('--window-size', action="store", nargs=2, dest='wsize', metavar=('WIDTH', 'HEIGHT'), default=(960, 540))
-	parser.add_argument('--width', action="store", default=None)
-	parser.add_argument('--height', action="store", default=None)
+	parser.add_argument('--width', action="store", type=int, default=None)
+	parser.add_argument('--height', action="store", type=int, default=None)
 	parser.add_argument('-m', '--manual', action="store_true", default=False,
 		help="Drive the car yourself")
 	parser.add_argument('-c', '--cameras', action="store_true", default=False,
 		help="Show camera lines and points")
+	parser.add_argument('--still', action="store_true", default=False,
+		help="Don't move cars")
 	args = parser.parse_args()
 
 	settings = {k:getattr(args, k) for k in ['manual', 'cameras']}
 	simulator = Simulator(settings=settings, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
 	if not args.manual:
 		simulator.start(True)
+	if args.still:
+		for car in simulator.cars:
+			car.human = True
+			car.speed = 0
 	pyglet.app.run()
 	#print()

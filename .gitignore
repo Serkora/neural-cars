@@ -1,4 +1,9 @@
 *.swp
 *.pyc
 __pycache__/*
+*/__pycache__/*
 *.out
+*.o
+*.so
+build/*
+*/build/*

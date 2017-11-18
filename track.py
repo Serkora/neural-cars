@@ -1,6 +1,7 @@
 import math
 import pyglet
 from drawables import *
+from cext import ctrack
 
 tau = 2 * math.pi
 
@@ -118,6 +119,20 @@ class Track(Entity):
 		self.circular = False
 
 		self.make_track_new()
+		self.set_ctrack()
+
+	def set_ctrack(self):
+		def section_to_array(section):
+			out = []
+			out.append(section.quad.front.coords)
+			out.append(section.quad.back.coords)
+			out.append(section.quad.left.coords)
+			out.append(section.quad.right.coords)
+			out.append(section.quad.line.coords)
+			out.append(section.quad.line.angle)
+			return out
+		sections = [section_to_array(sec) for sec in self.sections]
+		ctrack.store_track(sections)
 
 	def make_track(self):
 		self.add_section(line=Line((-50, -50), (50, 50)))
