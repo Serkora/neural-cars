@@ -191,6 +191,7 @@ class Quad(object):
 		self.back = Line(self.bottom_right, self.bottom_left)
 
 		self.box_vertices = self.get_box_vertices()
+		self.loop_vertices = sum(self.vertices, ())
 
 	def __len__(self):
 		return 4

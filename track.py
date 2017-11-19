@@ -71,26 +71,26 @@ class TrackSection(Entity):
 		return line
 
 	def add_to_batch(self, batch, colours=None, sides=True):
-		batch.add(2, pyglet.gl.GL_LINES, None,
-			('v2f', self.line.coords),
-			('c3B', (0,100,100,100,255,255))
-		)
-
 		if colours:
 			colours = (colours * 4)[:12]
 		else:
 			colours = self.colour * 4
 
 		if sides:
+			batch.add(2, pyglet.gl.GL_LINES, None,
+				('v2f', self.line.coords),
+				('c3B', (0,100,100,100,255,255))
+			)
+
 			batch.add(4, pyglet.gl.GL_LINES, None,
 				('v2f', self.quad.left.coords + self.quad.right.coords),
 				('c3B', colours))
 		else:
 			batch.add(4, pyglet.gl.GL_LINE_LOOP, None,
-				('v2f', sum(self.quad.vertices, tuple())),
+				('v2f', self.quad.loop_vertices),
 				('c3B', colours))
 
-	def car_has_left(self, car):
+	def changed_section(self, car):
 		carfrontline = Line(self.quad.top_left, (car.x, car.y))
 		carbackline = Line(self.quad.bottom_right, (car.x, car.y))
 

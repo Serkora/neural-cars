@@ -76,4 +76,10 @@ def inters():
 	t2 = time.time()
 	print("intersections = %s (%.3fus)" % (str(inter), (1000000 * (t2-t1))))
 
-inters()
+def collision():
+	ctrack()
+	corners = (-15,15,15,15,15,-15,-15,-15)
+	coll = cmodule.check_collision(corners, 0)
+	print("collision = ", coll)
+
+collision()

@@ -19,10 +19,12 @@ struct Track {
 
 static size_t SECTION_SIZE = sizeof(struct TrackSection);
 
-bool line_intersection(double *line1, double *line2, double *point);
+// for use by others
 bool find_section_intersection(double *line, int idx, double *point);
-inline void set_line(PyObject *pytuple, double *line);
-void set_section(PyObject *section, int idx);
+int out_of_section(double *pos, int idx);
+
+// dumping data from python to C heap
 PyObject* store_track(PyObject *self, PyObject *args);
+void set_section(PyObject *section, int idx);
 
 #endif

@@ -8,11 +8,6 @@ void print_rig(struct SensorRig *rig) {
 	}
 }
 
-void get_endpoint(struct Sensor *sensor, const double *pos, double rot, double *point) {
-	point[0] = pos[0] + sensor->distance * sin(rot + sensor->angle);
-	point[1] = pos[1] + sensor->distance * cos(rot + sensor->angle);
-}
-
 PyObject* store_sensors(PyObject *self, PyObject *args) {
 	PyObject *angles;
 	PyObject *distances;

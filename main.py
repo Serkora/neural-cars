@@ -17,7 +17,7 @@ def vec(*args):
 
 class Simulator(pyglet.window.Window):
 	def __init__(self, *args, settings=None, carnum=10, **kwargs):
-		config = pyglet.gl.Config(*args, sample_buffers=1, samples=1, depth_size=16, double_buffer=True, **kwargs)
+		config = pyglet.gl.Config(*args, sample_buffers=4, samples=4, depth_size=32, double_buffer=True, **kwargs)
 		super().__init__(*args, config=config, resizable=True, vsync=False, **kwargs)
 		self.keystate = key.KeyStateHandler()
 		self.push_handlers(self.keystate)
@@ -26,13 +26,13 @@ class Simulator(pyglet.window.Window):
 		if type(settings) == dict:
 			self.settings.update(settings)
 
-		self.carnum = carnum // 2 * 2 # need even number
+		self.carnum = (carnum+1) // 2 * 2 # need even number
 		self.cars = []
-		self.car = Car(human=True, sensors=self.settings['sensors']) # will be deleted later if simulation starts
+		self.car = Car(sensors=self.settings['sensors'], human=True, timeperf=True) # will be deleted later if simulation starts
 		self.track = Track()
 		self.track.set_ctrack()
 		self.car.put_on_track(self.track)
-		self.generation = 1
+		self.generation = 0
 
 		self.time = 0
 		self.fps = pyglet.clock.ClockDisplay()
@@ -49,19 +49,20 @@ class Simulator(pyglet.window.Window):
 
 	def setup_labels(self):
 		self.time_label = pyglet.text.Label(text="", x=10, y=self.height-20)
-		self.info_label = pyglet.text.Label(text="", x=10, y=self.height-40)
-		self.info_label.text = "Generation: %d" % self.generation
+		self.info_label = pyglet.text.Label(text="", x=10, y=self.height-40, font_name="Lucida Console", font_size=10)
+		#self.info_label.text = "Generation: %d" % self.generation
 
 	def start(self, makecars=False):
 		if makecars:
-			self.cars = [Car() for i in range(self.carnum)]
+			self.cars = [Car(sensors=self.settings['sensors'], timeperf=self.settings['timings'] > 1) for i in range(self.carnum)]
 		self.car = self.cars[0]
-		[car.put_on_track(self.track) for car in self.cars]
-		[car.accelerate(50) for car in self.cars]
+		for car in self.cars:
+			car.put_on_track(self.track)
+			car.accelerate(15)
 
 	def evolve(self):
 		self.generation += 1
-		self.info_label.text = "Generation: %d" % self.generation
+		#self.info_label.text = "Generation: %d" % self.generation
 		cars = sorted(self.cars, key=operator.attrgetter('section_idx', 'time'), reverse=True)
 		if cars[0].section_idx < 1:
 			#print("Don't have at least two good specimen, randomizing")
@@ -72,7 +73,7 @@ class Simulator(pyglet.window.Window):
 		runnerup = cars[1].driver
 		to_mutate = (self.carnum - 2) // 2
 		#print("best section: %d, runnerup section: %d" % (best.section_idx, runnerup.section_idx))
-		for i, pair in enumerate(zip(self.cars[::2], self.cars[1::2])):
+		for i, pair in enumerate(zip(self.cars[2::2], self.cars[3::2])):
 			severity = 0.25 * i/to_mutate
 			chance = 1 - i/to_mutate
 			pair[0].driver.learn_from(best, mutate=i, chance=chance, severity=severity)
@@ -95,8 +96,9 @@ class Simulator(pyglet.window.Window):
 		for key in self.keystate:
 			if self.keystate[key]:
 				self.dispatch_event('on_key_press', key, False)
-		[car.update(dt) for car in self.cars]
 		if len(self.cars):
+			for car in self.cars:
+				car.update(dt)
 			if all(car.collided for car in self.cars):
 				self.evolve()
 				self.start()
@@ -112,14 +114,12 @@ class Simulator(pyglet.window.Window):
 		self.draw()
 		t3 = time.time()
 		if self.settings['timings'] or self.settings['manual']:
-			drawtime = self.set_and_get_avg_time('draw', t3 - t2, 5)
-			updatetime = self.set_and_get_avg_time('update', t2 - t1, 5)
-			if self.settings['manual']:
-				carupdate = self.car.times['string']
-			else:
-				carupdate = ""
-			#print("\rdraw: %.3f, update: %.3f, dt = %.3f; car update: %s" % (drawtime, updatetime, dt, carupdate), end="")
-			self.info_label.text = "draw=%.3f,upd=%.3f,dt=%.3f; car upd: %s" % (drawtime, updatetime, dt, carupdate)
+			drawtime = 1000 * self.set_and_get_avg_time('draw', t3 - t2, 5)
+			updatetime = 1000 * self.set_and_get_avg_time('update', t2 - t1, 5)
+			carupdate = self.car.times['string']
+			if carupdate:
+				carupdate = "; car upd: %s" % carupdate
+			self.info_label.text = "dt=%2dms,draw=%2dms,upd=%02.2fms(%2dus/car)%s" % (1000*dt, drawtime, updatetime, updatetime / self.carnum * 1000, carupdate)
 
 	def setup2d_init(self):
 		"""
@@ -156,18 +156,20 @@ class Simulator(pyglet.window.Window):
 
 		self.setup2d_camera()
 		self.track.draw()
-		if len(self.cars):
-			[car.draw() for car in self.cars]
+		if 0 < len(self.cars) < 100:
+			for car in self.cars:
+				car.draw()
+		else:
+			self.car.draw()
 		if self.settings['manual']:
 			self.car.draw()
 			self.car.draw_section()
-			self.car.update_points()
-			#self.car.draw_points()
-			if self.settings['cameras']:
-				self.car.draw_sensors()
+			self.car.draw_points()
+		if self.settings['cameras']:
+			self.car.draw_sensors()
 
 	def draw_labels(self):
-		self.time_label.text = "Time: %.3f" % self.time
+		self.time_label.text = "Time: %.3f. Generation: %d" % (self.time, self.generation)
 		#self.info_label.text = "x: %.2f, y: %.2f, rot: %.2f, speed: %.2f" % (
 		#	self.car.x, self.car.y, self.car.rot * 180 / math.pi, self.car.speed)
 		self.time_label.draw()
@@ -237,7 +239,7 @@ if __name__ == "__main__":
 		help="Show camera lines and points")
 	parser.add_argument('--still', action="store_true", default=False,
 		help="Don't move cars")
-	parser.add_argument('-t', '--timings', action="store_true", default=False,
+	parser.add_argument('-t', '--timings', action="store", type=int, default=0,
 		help="Show various timings")
 	parser.add_argument('-s', '--sensors', action="store", type=int, default=0,
 		help="Number of sensors that span [-math.pi, math.pi]")
