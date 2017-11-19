@@ -118,8 +118,8 @@ class Simulator(pyglet.window.Window):
 			updatetime = 1000 * self.set_and_get_avg_time('update', t2 - t1, 5)
 			carupdate = self.car.times['string']
 			if carupdate:
-				carupdate = "; car upd: %s" % carupdate
-			self.info_label.text = "dt=%2dms,draw=%2dms,upd=%02.2fms(%2dus/car)%s" % (1000*dt, drawtime, updatetime, updatetime / self.carnum * 1000, carupdate)
+				carupdate = ": %s" % carupdate
+			self.info_label.text = "dt=%2dms,draw=%2dms,upd=%04.1fms(%3dus/car)%s" % (1000*dt, drawtime, updatetime, updatetime / self.carnum * 1000, carupdate)
 
 	def setup2d_init(self):
 		"""
@@ -244,13 +244,13 @@ if __name__ == "__main__":
 	parser.add_argument('-c', '--cameras', action="store_true", default=False,
 		help="Show camera lines and points")
 	parser.add_argument('--still', action="store_true", default=False,
-		help="Don't move cars")
+		help="Disable neural network and don't move the cars")
 	parser.add_argument('-t', '--timings', action="store", type=int, default=0,
 		help="Show various timings")
 	parser.add_argument('-s', '--sensors', action="store", type=int, default=0,
 		help="Number of sensors that span [-math.pi, math.pi]")
-	parser.add_argument('--drawlimit', action="store", type=int, default=100,
-		help="Max number of cars to draw")
+	parser.add_argument('--drawlimit', action="store", type=int, default=0,
+		help="Max number of cars to draw (0 = draw all)")
 	args = parser.parse_args()
 
 	settings = {k:getattr(args, k) for k in ['manual', 'cameras', 'timings', 'sensors', 'drawlimit']}

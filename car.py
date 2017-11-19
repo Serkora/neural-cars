@@ -207,7 +207,7 @@ class Car(Entity):
 			c = 1000000 * self.set_and_get_avg_time('collision', t4 - t3)
 			s = 1000000 * self.set_and_get_avg_time('section_change', t5 - t4)
 			d = 1000000 * self.set_and_get_avg_time('sensors', t6 - t5)
-			self.times['string'] = "act=%3dus,move=%2dus, rot=%2dus, coll=%2dus,sen=%2dus,sec=%2dus" % (a, m, r, c, d, s)
+			self.times['string'] = "act=%3dus,move=%04.1fus,rot=%04.1fus,coll=%04.1fus,sen=%04.1fus,sec=%04.1fus" % (a, m, r, c, d, s)
 
 	def make_action(self):
 		if self.human:
