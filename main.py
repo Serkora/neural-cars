@@ -16,9 +16,9 @@ def vec(*args):
 	return (GLfloat * len(args))(*args)
 
 class Simulator(pyglet.window.Window):
-	def __init__(self, *args, settings=None, carnum=10, **kwargs):
-		config = pyglet.gl.Config(*args, sample_buffers=4, samples=4, depth_size=32, double_buffer=True, **kwargs)
-		super().__init__(*args, config=config, resizable=True, vsync=False, **kwargs)
+	def __init__(self, *args, settings=None, carnum=10, width=960, height=540, vsync=False, **kwargs):
+		config = pyglet.gl.Config(sample_buffers=1, samples=1, depth_size=16, double_buffer=True)
+		super().__init__(width=width, height=height, config=config, resizable=True, vsync=vsync)
 		self.keystate = key.KeyStateHandler()
 		self.push_handlers(self.keystate)
 
@@ -45,7 +45,7 @@ class Simulator(pyglet.window.Window):
 		self.y = 0
 		self.scale = 1
 
-		pyglet.clock.schedule_interval(self._update, 1.0 / 120)
+		pyglet.clock.schedule_interval(self._update, 1.0 / 60)
 
 	def setup_labels(self):
 		self.time_label = pyglet.text.Label(text="", x=10, y=self.height-20)
@@ -156,9 +156,15 @@ class Simulator(pyglet.window.Window):
 
 		self.setup2d_camera()
 		self.track.draw()
-		if 0 < len(self.cars) < 100:
-			for car in self.cars:
-				car.draw()
+		if len(self.cars):
+			if self.settings['drawlimit']:
+				self.car.draw() # to make sure the leader is drawn
+				for car in self.cars[:self.settings['drawlimit']]:
+					if car != self.car:
+						car.draw()
+			else:
+				for car in self.cars:
+					car.draw()
 		else:
 			self.car.draw()
 		if self.settings['manual']:
@@ -243,9 +249,11 @@ if __name__ == "__main__":
 		help="Show various timings")
 	parser.add_argument('-s', '--sensors', action="store", type=int, default=0,
 		help="Number of sensors that span [-math.pi, math.pi]")
+	parser.add_argument('--drawlimit', action="store", type=int, default=100,
+		help="Max number of cars to draw")
 	args = parser.parse_args()
 
-	settings = {k:getattr(args, k) for k in ['manual', 'cameras', 'timings', 'sensors']}
+	settings = {k:getattr(args, k) for k in ['manual', 'cameras', 'timings', 'sensors', 'drawlimit']}
 	simulator = Simulator(settings=settings, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
 	if not args.manual:
 		simulator.start(True)

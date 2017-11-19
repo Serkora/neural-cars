@@ -8,7 +8,6 @@
 const double CAR_LENGTH = 30;
 const double CAR_WIDTH = 10;
 const double ORIGIN[2] = {0,0};
-const double CORNER[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
 //const double CORNER_ANGLE = tan(CAR_WIDTH/CAR_LENGTH);
 //const double CORNER_DISTANCE = point_distance(origin, corner);
 
@@ -109,8 +108,11 @@ PyObject* check_collision_pos(PyObject *self, PyObject *args) {
 		return NULL;
 	}
 
+	// shoudl be static really
+	double CORNER[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
 	double distance = point_distance(ORIGIN, CORNER);
 	double angle = tan(CAR_WIDTH / CAR_LENGTH);
+	
 	double sin_left = distance * sin(rot - angle);
 	double sin_right = distance * sin(rot + angle);
 	double cos_left = distance * cos(rot - angle);
