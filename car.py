@@ -7,7 +7,10 @@ import numpy as np
 import graphtools
 import neural
 from drawables import *
-from cext import cmodule
+try:
+	from cext import cmodule
+except ImportError:
+	cmodule = None
 
 car_batch = None
 
@@ -24,13 +27,17 @@ class SensorRig(object):
 		self.max_distances = distances
 		self.distances = self.max_distances[:] # copy just in case
 		#self.points = [(0,0)] * len(self.distances)
-		self.caddr = cmodule.store_sensors(self.angles, self.max_distances)
+		if cmodule:
+			self.caddr = cmodule.store_sensors(self.angles, self.max_distances)
 
 	def __del__(self):
 		cmodule.delete_sensors(self.caddr)
 
 	def get_distances(self, position, rotation, section_idx):
-		self.distances = cmodule.find_track_intersection(self.caddr, position, rotation, section_idx)
+		if cmodule:
+			self.distances = cmodule.find_track_intersection(self.caddr, position, rotation, section_idx)
+		else:
+			pass
 
 	def reset(self):
 		self.distances = self.max_distances[:]
@@ -108,6 +115,9 @@ class Car(Entity):
 
 	def construct(self):
 		global car_batch
+		self.line_colours = (
+			255,0,0,255,0,0, 255,0,0,0,255,0,
+			0,255,0,0,255,0, 0,255,0,255,0,0)
 		if car_batch:
 			self.batch = car_batch
 			return
@@ -140,8 +150,31 @@ class Car(Entity):
 		self.bottom_left = (self.x - sdisp, self.y - cdisp)
 		return self.top_left + self.top_right + self.bottom_right + self.bottom_left
 
+	@property
+	def linecoords(self):
+		c = self.corners
+		return (c[0],c[1],c[2],c[3],
+				c[2],c[3],c[4],c[5],
+				c[4],c[5],c[6],c[7],
+				c[6],c[7],c[0],c[1])
+
+	@property
+	def lines(self):
+		c = self.corners
+		return ((c[0],c[1],c[2],c[3]),
+				(c[2],c[3],c[4],c[5]),
+				(c[4],c[5],c[6],c[7]),
+				(c[6],c[7],c[0],c[1]))
+
 	def draw(self):
 		super().draw()
+		return
+		glLoadIdentity()
+		pyglet.graphics.draw(8, GL_LINES,
+			('v2f', self.linecoords),
+			('c3B', self.line_colours)
+		)
+
 
 	def draw_section(self):
 		glLoadIdentity()
@@ -257,6 +290,7 @@ class Car(Entity):
 		#self.position = self.track.sections[0].quad.line.centre
 		#self.rot = self.track.sections[0].quad.line.angle
 		self.position = self.section.quad.line.centre
+		self.x += np.random.random() * 20 - 10
 		self.rot = self.section.quad.line.angle
 		self.speed = 0
 		self.last_action = 0
@@ -289,7 +323,9 @@ class Car(Entity):
 			return
 		if cmodule:
 			return cmodule.check_collision_pos((self.x, self.y), self.rot, self.section_idx)
-			return cmodule.check_collision(self.corners, self.section_idx)
+			#return cmodule.check_collision(self.corners, self.section_idx)
+		#else:
+		#	return self.track.check_collision(self.lines, self.section_idx)
 		left_line = Line(self.top_left, self.bottom_left)
 		right_line = Line(self.top_right, self.bottom_right)
 		last_border = None

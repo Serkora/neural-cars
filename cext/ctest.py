@@ -9,6 +9,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "b":
 import track
 import cmodule
 import math
+import car
 
 l1 = (0,0,5,5)
 l2 = (5,0,0,5)
@@ -82,4 +83,13 @@ def collision():
 	coll = cmodule.check_collision(corners, 0)
 	print("collision = ", coll)
 
-collision()
+def linecoords():
+	cars = [(0,0,0)]
+	carsgen = (car for car in cars)
+	coords = cmodule.car_lines(carsgen, len(cars))
+	print("coords.\nfront=%s\nright=%s\nback=%s\nleft=%s" % (coords[:4], coords[4:8], coords[8:12], coords[12:]))
+	_car = car.Car()
+	carcoords = _car.linecoords
+	print("carcoords.\nfront=%s\nright=%s\nback=%s\nleft=%s" % (carcoords[:4], carcoords[4:8], carcoords[8:12], carcoords[12:]))
+
+linecoords()

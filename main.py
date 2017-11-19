@@ -7,16 +7,21 @@ from collections import defaultdict
 import pyglet
 from pyglet.gl import *
 from pyglet.window import key
+import numpy as np
 
 from car import Car
 from track import Track
 
+try:
+	from cext import cmodule
+except ImportError:
+	cmodule = None
 
 def vec(*args):
 	return (GLfloat * len(args))(*args)
 
 class Simulator(pyglet.window.Window):
-	def __init__(self, *args, settings=None, carnum=10, width=960, height=540, vsync=False, **kwargs):
+	def __init__(self, *args, settings=None, carnum=10, width=960, height=540, vsync=True, **kwargs):
 		config = pyglet.gl.Config(sample_buffers=1, samples=1, depth_size=16, double_buffer=True)
 		super().__init__(width=width, height=height, config=config, resizable=True, vsync=vsync)
 		self.keystate = key.KeyStateHandler()
@@ -29,6 +34,7 @@ class Simulator(pyglet.window.Window):
 		self.carnum = (carnum+1) // 2 * 2 # need even number
 		self.cars = []
 		self.car = Car(sensors=self.settings['sensors'], human=True, timeperf=True) # will be deleted later if simulation starts
+		self.carline_colours = tuple()
 		self.track = Track()
 		self.track.set_ctrack()
 		self.car.put_on_track(self.track)
@@ -48,13 +54,15 @@ class Simulator(pyglet.window.Window):
 		pyglet.clock.schedule_interval(self._update, 1.0 / 60)
 
 	def setup_labels(self):
-		self.time_label = pyglet.text.Label(text="", x=10, y=self.height-20)
-		self.info_label = pyglet.text.Label(text="", x=10, y=self.height-40, font_name="Lucida Console", font_size=10)
-		#self.info_label.text = "Generation: %d" % self.generation
+		self.main_label = pyglet.text.Label(text="", x=10, y=self.height-20)
+		self.maintimes_label = pyglet.text.Label(text="", x=10, y=self.height-40, font_name="Lucida Console", font_size=10)
+		self.cartimes_label = pyglet.text.Label(text="", x=10, y=self.height-60, font_name="Lucida Console", font_size=10)
+		#self.maintimes_label.text = "Generation: %d" % self.generation
 
 	def start(self, makecars=False):
 		if makecars:
 			self.cars = [Car(sensors=self.settings['sensors'], timeperf=self.settings['timings'] > 1) for i in range(self.carnum)]
+			self.carline_colours = sum((car.line_colours for car in self.cars),())
 		self.car = self.cars[0]
 		for car in self.cars:
 			car.put_on_track(self.track)
@@ -62,7 +70,7 @@ class Simulator(pyglet.window.Window):
 
 	def evolve(self):
 		self.generation += 1
-		#self.info_label.text = "Generation: %d" % self.generation
+		#self.maintimes_label.text = "Generation: %d" % self.generation
 		cars = sorted(self.cars, key=operator.attrgetter('section_idx', 'time'), reverse=True)
 		if cars[0].section_idx < 1:
 			#print("Don't have at least two good specimen, randomizing")
@@ -82,11 +90,20 @@ class Simulator(pyglet.window.Window):
 		#print("cars[0] %d, best: %d" % (id(self.cars[0].driver.network.layers[1].neurons[0].weights), id(best.driver.network.layers[1].neurons[0].weights)))
 		#print("copied and mutated!")
 
-	def set_and_get_avg_time(self, cat, time, limit=10):
+	def set_avg_time(self, cat, time, limit=10):
 		self.times[cat].append(time)
 		if len(self.times[cat]) > limit:
 			self.times[cat].pop(0)
-		return sum(self.times[cat]) / len(self.times[cat])
+
+	def get_avg_time(self, cat):
+		if len(self.times[cat]):
+			return sum(self.times[cat]) / len(self.times[cat])
+		else:
+			return 0
+
+	def set_and_get_avg_time(self, cat, time, limit=10):
+		self.set_avg_time(cat, time, limit)
+		return self.get_avg_time(cat)
 
 	def _update(self, dt):
 		dt = min(dt, 1/30) # slow down time instead of "dropping" frames and having quick jumps in space
@@ -115,11 +132,14 @@ class Simulator(pyglet.window.Window):
 		t3 = time.time()
 		if self.settings['timings'] or self.settings['manual']:
 			drawtime = 1000 * self.set_and_get_avg_time('draw', t3 - t2, 5)
+			cardraw = 1000 * self.get_avg_time('cardraw')
+			coords = 1000 * self.get_avg_time('lines')
+			drawcall = 1000 * self.get_avg_time('drawcall')
 			updatetime = 1000 * self.set_and_get_avg_time('update', t2 - t1, 5)
 			carupdate = self.car.times['string']
 			if carupdate:
-				carupdate = ": %s" % carupdate
-			self.info_label.text = "dt=%2dms,draw=%2dms,upd=%04.1fms(%3dus/car)%s" % (1000*dt, drawtime, updatetime, updatetime / self.carnum * 1000, carupdate)
+				self.cartimes_label.text = "Per car: %s" % carupdate
+			self.maintimes_label.text = "dt=%2dms,draw=%2dms(cars=%.2fms:coords=%.2fms,draw=%.2fms),upd=%04.1fms(%3dus/car)" % (1000*dt, drawtime, cardraw, coords, drawcall, updatetime, updatetime / self.carnum * 1000)
 
 	def setup2d_init(self):
 		"""
@@ -156,6 +176,54 @@ class Simulator(pyglet.window.Window):
 
 		self.setup2d_camera()
 		self.track.draw()
+		t1 = time.time()
+		self.draw_cars()
+		#self.draw_cars_old()
+		t2 = time.time()
+		self.set_avg_time('cardraw', t2-t1)
+
+	def draw_cars(self):
+		glLoadIdentity()
+		t1 = time.time()
+		if len(self.cars):
+			carnum = len(self.cars)
+			if self.settings['drawlimit']:
+				cars = np.random.choice(self.cars, self.settings['drawlimit'])
+				carnum = len(cars)
+				self.carline_colours = sum((car.line_colours for car in cars),())
+				if self.car not in cars:
+					self.car.draw() # to make sure the leader is drawn
+					glLoadIdentity()
+			else:
+				cars = self.cars
+
+			if cmodule:
+				pos = ((car.x, car.y, car.rot) for car in cars)
+				coords = cmodule.car_lines(pos, carnum)#
+			else:
+				coords = sum((car.linecoords for car in cars), ())
+		
+			t2 = time.time()
+			pyglet.graphics.draw(8 * carnum, GL_LINES,
+				('v2f', coords),
+				('c3B', self.carline_colours)
+			)
+		else:
+			t2 = time.time()
+			self.car.draw()
+		t3 = time.time()
+		if self.settings['manual']:
+			self.car.draw()
+			self.car.draw_section()
+			self.car.draw_points()
+		if self.settings['cameras']:
+			self.car.draw_sensors()
+		t4 = time.time()
+		self.set_avg_time('lines', t2 - t1)
+		self.set_avg_time('drawcall', t3 - t2)
+		self.set_avg_time('hidden', t4 - t3)
+
+	def draw_cars_old(self):
 		if len(self.cars):
 			if self.settings['drawlimit']:
 				self.car.draw() # to make sure the leader is drawn
@@ -167,20 +235,15 @@ class Simulator(pyglet.window.Window):
 					car.draw()
 		else:
 			self.car.draw()
-		if self.settings['manual']:
-			self.car.draw()
-			self.car.draw_section()
-			self.car.draw_points()
-		if self.settings['cameras']:
-			self.car.draw_sensors()
 
 	def draw_labels(self):
-		self.time_label.text = "Time: %.3f. Generation: %d" % (self.time, self.generation)
-		#self.info_label.text = "x: %.2f, y: %.2f, rot: %.2f, speed: %.2f" % (
+		self.main_label.text = "Time: %.3f. Generation: %d" % (self.time, self.generation)
+		#self.maintimes_label.text = "x: %.2f, y: %.2f, rot: %.2f, speed: %.2f" % (
 		#	self.car.x, self.car.y, self.car.rot * 180 / math.pi, self.car.speed)
-		self.time_label.draw()
-		self.info_label.draw()
-		self.car.draw_labels()
+		self.main_label.draw()
+		self.maintimes_label.draw()
+		self.cartimes_label.draw()
+		#self.car.draw_labels()
 		#self.track.draw_labels()
 
 	def on_key_press(self, symbol, modifier):

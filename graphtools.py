@@ -1,10 +1,14 @@
 import time
 import math
 import numpy as np
-from cext import cfuncs
+try:
+	from cext import cmodule
+except ImportError:
+	cmodule = None
 
 def line_intersection(line1, line2):
-	return cfuncs.intersection(line1, line2)
+	if cmodule:
+		return cmodule.intersection(line1, line2)
 	x1, y1, x2, y2 = line1
 	x3, y3, x4, y4 = line2
 

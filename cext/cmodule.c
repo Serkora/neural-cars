@@ -8,6 +8,10 @@
 const double CAR_LENGTH = 30;
 const double CAR_WIDTH = 10;
 const double ORIGIN[2] = {0,0};
+/* the below three will be changed later */
+double CORNER[2] = {0, 0};
+double CORNER_ANGLE = 0;
+double CORNER_DISTANCE = 0;	
 //const double CORNER_ANGLE = tan(CAR_WIDTH/CAR_LENGTH);
 //const double CORNER_DISTANCE = point_distance(origin, corner);
 
@@ -108,21 +112,21 @@ PyObject* check_collision_pos(PyObject *self, PyObject *args) {
 		return NULL;
 	}
 
-	// shoudl be static really
-	double CORNER[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
-	double distance = point_distance(ORIGIN, CORNER);
+	// should be static really
+	double corner[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
+	double distance = point_distance(ORIGIN, corner);
 	double angle = tan(CAR_WIDTH / CAR_LENGTH);
 	
-	double sin_left = distance * sin(rot - angle);
-	double sin_right = distance * sin(rot + angle);
-	double cos_left = distance * cos(rot - angle);
-	double cos_right = distance * cos(rot + angle);
+	double sin_m = distance * sin(rot - angle);
+	double sin_p = distance * sin(rot + angle);
+	double cos_m = distance * cos(rot - angle);
+	double cos_p = distance * cos(rot + angle);
 
 	double box[4][4] = {
-		{pos[0] + sin_left, pos[1] + cos_left, pos[0] + sin_right, pos[1] + cos_right},
-		{pos[0] + sin_right, pos[1] + cos_right, pos[0] - sin_right, pos[1] - cos_right},
-		{pos[0] - sin_right, pos[1] - cos_right, pos[0] - sin_left, pos[1] - cos_left},
-		{pos[0] - sin_left, pos[1] - cos_left, pos[0] + sin_left, pos[1] + cos_left}
+		{pos[0] + sin_m, pos[1] + cos_m, pos[0] + sin_p, pos[1] + cos_p},
+		{pos[0] + sin_p, pos[1] + cos_p, pos[0] - sin_m, pos[1] - cos_m},
+		{pos[0] - sin_m, pos[1] - cos_m, pos[0] - sin_p, pos[1] - cos_p},
+		{pos[0] - sin_p, pos[1] - cos_p, pos[0] + sin_m, pos[1] + cos_m}
 	};
 
 	int i;
@@ -148,6 +152,66 @@ PyObject* changed_section(PyObject* self, PyObject *args) {
 	return Py_BuildValue("i", change);
 }
 
+PyObject *car_lines(PyObject *self, PyObject *args) {
+	PyObject *cars;
+	int size;
+
+	if (!PyArg_ParseTuple(args, "OI", &cars, &size)) {
+		return NULL;
+	}
+
+	double corner[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
+	double distance = point_distance(ORIGIN, corner);
+	double angle = tan(CAR_WIDTH / CAR_LENGTH);
+
+	//printf("number of cars: %d\n", size);
+	PyObject *lines = PyTuple_New(size * 16);
+
+
+	int i = 0;
+	PyObject *car;
+	while ((car = PyIter_Next(cars))) {
+		double x, y, rot;
+		PyArg_ParseTuple(car, "ddd", &x, &y, &rot);
+
+		double sin_m = distance * sin(rot - angle);
+		double sin_p = distance * sin(rot + angle);
+		double cos_m = distance * cos(rot - angle);
+		double cos_p = distance * cos(rot + angle);
+
+		double top_left[2] = {x + sin_m, y + cos_m};
+		double top_right[2] = {x + sin_p, y + cos_p};
+		double bottom_right[2] = {x - sin_m, y - cos_m};
+		double bottom_left[2] = {x - sin_p, y - cos_p};
+
+		// front	
+		PyTuple_SET_ITEM(lines, i, Py_BuildValue("d", top_left[0]));
+		PyTuple_SET_ITEM(lines, i+1, Py_BuildValue("d", top_left[1]));
+		PyTuple_SET_ITEM(lines, i+2, Py_BuildValue("d", top_right[0]));
+		PyTuple_SET_ITEM(lines, i+3, Py_BuildValue("d", top_right[1]));
+		// right
+		PyTuple_SET_ITEM(lines, i+4, Py_BuildValue("d", top_right[0]));
+		PyTuple_SET_ITEM(lines, i+5, Py_BuildValue("d", top_right[1]));
+		PyTuple_SET_ITEM(lines, i+6, Py_BuildValue("d", bottom_right[0]));
+		PyTuple_SET_ITEM(lines, i+7, Py_BuildValue("d", bottom_right[1]));
+		// back
+		PyTuple_SET_ITEM(lines, i+8, Py_BuildValue("d", bottom_right[0]));
+		PyTuple_SET_ITEM(lines, i+9, Py_BuildValue("d", bottom_right[1]));
+		PyTuple_SET_ITEM(lines, i+10, Py_BuildValue("d", bottom_left[0]));
+		PyTuple_SET_ITEM(lines, i+11, Py_BuildValue("d", bottom_left[1]));
+		// left
+		PyTuple_SET_ITEM(lines, i+12, Py_BuildValue("d", bottom_left[0]));
+		PyTuple_SET_ITEM(lines, i+13, Py_BuildValue("d", bottom_left[1]));
+		PyTuple_SET_ITEM(lines, i+14, Py_BuildValue("d", top_left[0]));
+		PyTuple_SET_ITEM(lines, i+15, Py_BuildValue("d", top_left[1]));
+	
+		i += 16;
+		Py_DECREF(car);
+	}
+
+	return lines;
+}
+
 /*  define functions in module */
 static PyMethodDef cmodule_funcs[] =
 {
@@ -159,6 +223,7 @@ static PyMethodDef cmodule_funcs[] =
 	{"check_collision", check_collision, METH_VARARGS, "check car collisions"},
 	{"check_collision_pos", check_collision_pos, METH_VARARGS, "check car collisions"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},
+	{"car_lines", car_lines, METH_VARARGS, "Get a tuple of all car lines to draw in one call"},
 	{NULL, NULL, 0, NULL}
 };
 
