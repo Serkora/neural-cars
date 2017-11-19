@@ -115,7 +115,7 @@ PyObject* check_collision_pos(PyObject *self, PyObject *args) {
 	// should be static really
 	double corner[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
 	double distance = point_distance(ORIGIN, corner);
-	double angle = tan(CAR_WIDTH / CAR_LENGTH);
+	double angle = atan(CAR_WIDTH / CAR_LENGTH);
 	
 	double sin_m = distance * sin(rot - angle);
 	double sin_p = distance * sin(rot + angle);
@@ -162,50 +162,36 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 
 	double corner[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
 	double distance = point_distance(ORIGIN, corner);
-	double angle = tan(CAR_WIDTH / CAR_LENGTH);
+	double angle = atan(CAR_WIDTH / CAR_LENGTH);
 
-	//printf("number of cars: %d\n", size);
 	PyObject *lines = PyTuple_New(size * 16);
 
-
 	int i = 0;
+	int j;
 	PyObject *car;
+	double sin_m, sin_p, cos_m, cos_p;
 	while ((car = PyIter_Next(cars))) {
 		double x, y, rot;
 		PyArg_ParseTuple(car, "ddd", &x, &y, &rot);
 
-		double sin_m = distance * sin(rot - angle);
-		double sin_p = distance * sin(rot + angle);
-		double cos_m = distance * cos(rot - angle);
-		double cos_p = distance * cos(rot + angle);
+		sin_m = distance * sin(rot - angle);
+		sin_p = distance * sin(rot + angle);
+		cos_m = distance * cos(rot - angle);
+		cos_p = distance * cos(rot + angle);
 
-		double top_left[2] = {x + sin_m, y + cos_m};
-		double top_right[2] = {x + sin_p, y + cos_p};
-		double bottom_right[2] = {x - sin_m, y - cos_m};
-		double bottom_left[2] = {x - sin_p, y - cos_p};
+		double corners[4][2] = {
+			{x + sin_m, y + cos_m}, // top left
+			{x + sin_p, y + cos_p},	// top right
+			{x - sin_m, y - cos_m},	// bottom right
+			{x - sin_p, y - cos_p}	// bottom left
+		};
 
-		// front	
-		PyTuple_SET_ITEM(lines, i, Py_BuildValue("d", top_left[0]));
-		PyTuple_SET_ITEM(lines, i+1, Py_BuildValue("d", top_left[1]));
-		PyTuple_SET_ITEM(lines, i+2, Py_BuildValue("d", top_right[0]));
-		PyTuple_SET_ITEM(lines, i+3, Py_BuildValue("d", top_right[1]));
-		// right
-		PyTuple_SET_ITEM(lines, i+4, Py_BuildValue("d", top_right[0]));
-		PyTuple_SET_ITEM(lines, i+5, Py_BuildValue("d", top_right[1]));
-		PyTuple_SET_ITEM(lines, i+6, Py_BuildValue("d", bottom_right[0]));
-		PyTuple_SET_ITEM(lines, i+7, Py_BuildValue("d", bottom_right[1]));
-		// back
-		PyTuple_SET_ITEM(lines, i+8, Py_BuildValue("d", bottom_right[0]));
-		PyTuple_SET_ITEM(lines, i+9, Py_BuildValue("d", bottom_right[1]));
-		PyTuple_SET_ITEM(lines, i+10, Py_BuildValue("d", bottom_left[0]));
-		PyTuple_SET_ITEM(lines, i+11, Py_BuildValue("d", bottom_left[1]));
-		// left
-		PyTuple_SET_ITEM(lines, i+12, Py_BuildValue("d", bottom_left[0]));
-		PyTuple_SET_ITEM(lines, i+13, Py_BuildValue("d", bottom_left[1]));
-		PyTuple_SET_ITEM(lines, i+14, Py_BuildValue("d", top_left[0]));
-		PyTuple_SET_ITEM(lines, i+15, Py_BuildValue("d", top_left[1]));
-	
+		for (j=0; j<16; j++) {
+			//PyTuple_SET_ITEM(lines, i+j, Py_BuildValue("d", corners[(j+2)%16/4][j%2]));
+			PyTuple_SET_ITEM(lines, i+j, Py_BuildValue("d", corners[((j+2)&0xf)>>2][j%2]));
+		}
 		i += 16;
+
 		Py_DECREF(car);
 	}
 

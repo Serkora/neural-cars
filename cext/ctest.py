@@ -84,12 +84,46 @@ def collision():
 	print("collision = ", coll)
 
 def linecoords():
+	cars = [(1,5,0), (5,20,1)]
 	cars = [(0,0,0)]
 	carsgen = (car for car in cars)
 	coords = cmodule.car_lines(carsgen, len(cars))
-	print("coords.\nfront=%s\nright=%s\nback=%s\nleft=%s" % (coords[:4], coords[4:8], coords[8:12], coords[12:]))
-	_car = car.Car()
-	carcoords = _car.linecoords
-	print("carcoords.\nfront=%s\nright=%s\nback=%s\nleft=%s" % (carcoords[:4], carcoords[4:8], carcoords[8:12], carcoords[12:]))
+	for i in range(len(cars)):
+		print("car %d coords\nC:" % i)
+		c = coords[16*i:16*(i+1)]
+		print("front=%s\nright=%s\nback=%s\nleft=%s" % (c[:4], c[4:8], c[8:12], c[12:]))
+		_car = car.Car()
+		_car.x = cars[i][0]
+		_car.y = cars[i][1]
+		_car.rot = cars[i][2]
+		c = _car.linecoords
+		print("python:\nfront=%s\nright=%s\nback=%s\nleft=%s" % (c[:4], c[4:8], c[8:12], c[12:]))
+
+def linecoordsbench():
+	c = 5000
+	n = 100
+	times = []
+	times2 = []
+	for i in range(n):
+		cars = ((5,5,5) for i in range(c))
+		t1 = time.time()
+		coords = cmodule.car_lines(cars, c)
+		t2 = time.time()
+		t = 1000 * (t2-t1)
+		times.append(t)
+		cars = ((5,5,5) for i in range(c))
+		t1 = time.time()
+		coords = cmodule.car_lines2(cars, c)
+		t2 = time.time()
+		t = 1000 * (t2-t1)
+		times2.append(t)
+	avg = sum(times) / len(times)
+	mn = min(times)
+	mx = max(times)
+	avg2 = sum(times2) / len(times2)
+	mn2 = min(times2)
+	mx2 = max(times2)
+	print("average car_line per call: %.3fms (%.3fms to %.3fms)" % (avg, mn, mx))
+	print("average car_line2 per call: %.3fms (%.3fms to %.3fms)" % (avg2, mn2, mx2))
 
 linecoords()
