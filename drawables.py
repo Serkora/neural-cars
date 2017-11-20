@@ -89,14 +89,18 @@ class Line(object):
 	def angle(self):
 		if not self._angle is None:
 			return self._angle
-		if self.quadrant == 1:
-			self._angle = math.atan((self.end.x - self.start.x) / ((self.end.y - self.start.y) or 0.000001))
+		if self.end.x - self.start.x == 0:
+			self._angle = [0, math.pi][self.end.y < self.start.y]
+		elif self._end.y - self.start.y == 0:
+			self._angle = [math.pi/2, 3*math.pi/2][self.end.x < self.start.x]
+		elif self.quadrant == 1:
+			self._angle = math.atan((self.end.x - self.start.x) / (self.end.y - self.start.y))
 		elif self.quadrant == 2:
-			self._angle = 3 * math.pi / 2 +  math.atan((self.end.y - self.start.y) / (abs(self.end.x - self.start.x) or 0.000001))
+			self._angle = 3 * math.pi / 2 +  math.atan((self.end.y - self.start.y) / abs(self.end.x - self.start.x))
 		elif self.quadrant == 4:
-			self._angle = math.pi / 2 + math.atan(abs(self.end.y - self.start.y) / ((self.end.x - self.start.x) or 0.000001))
+			self._angle = math.pi / 2 + math.atan(abs(self.end.y - self.start.y) / (self.end.x - self.start.x))
 		elif self.quadrant == 3:
-			self._angle = math.pi + math.atan((self.end.x - self.start.x) / ((self.end.y - self.start.y) or 0.000001))
+			self._angle = math.pi + math.atan((self.end.x - self.start.x) / (self.end.y - self.start.y))
 		return self._angle
 
 	@property
@@ -189,6 +193,10 @@ class Quad(object):
 		self.front = Line(self.top_left, self.top_right)
 		self.right = Line(self.bottom_right, self.top_right)
 		self.back = Line(self.bottom_right, self.bottom_left)
+		self.leftt = self.left.coords
+		self.frontt = self.front.coords
+		self.rightt = self.right.coords
+		self.backt = self.back.coords
 
 		self.box_vertices = self.get_box_vertices()
 		self.loop_vertices = sum(self.vertices, ())

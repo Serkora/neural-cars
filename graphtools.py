@@ -6,11 +6,19 @@ try:
 except ImportError:
 	cmodule = None
 
-def line_intersection(line1, line2):
-	if cmodule:
-		return cmodule.intersection(line1, line2)
+def segment_intersection(line1, line2, point=True):
+	#if cmodule:	return cmodule.intersection(line1, line2)
+
 	x1, y1, x2, y2 = line1
 	x3, y3, x4, y4 = line2
+	#if type(line1) == tuple:
+	#	x1, y1, x2, y2 = line1
+	#else:
+	#	x1, y1, x2, y2 = line1.start.x, line1.start.y, line1.end.x, line1.end.y
+	#if type(line2) == tuple:
+	#	x3, y3, x4, y4 = line2
+	#else:
+	#	x3, y3, x4, y4 = line2.start.x, line2.start.y, line2.end.x, line2.end.y
 
 	dx1 = x1 - x2
 	dx2 = x3 - x4
@@ -39,10 +47,15 @@ def line_intersection(line1, line2):
 	if d1a * d2a > 0:
 		return
 
-	# calculate the determinant itself to find the intersection point
-	x = (a * dx2 - dx1 * b) / denom
-	y = (a * dy2 - dy1 * b) / denom
-	return (x,y)
+	if point:
+		# calculate the determinant to find the intersection point
+		x = (a * dx2 - dx1 * b) / denom
+		y = (a * dy2 - dy1 * b) / denom
+		return (x,y)
+	else:
+		return True
+
+line_intersection = segment_intersection
 
 def same_direction(angle1, angle2):
 	mx = max(angle1, angle2)

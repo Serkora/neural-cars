@@ -126,4 +126,5 @@ def linecoordsbench():
 	print("average car_line per call: %.3fms (%.3fms to %.3fms)" % (avg, mn, mx))
 	print("average car_line2 per call: %.3fms (%.3fms to %.3fms)" % (avg2, mn2, mx2))
 
-linecoords()
+#linecoords()
+

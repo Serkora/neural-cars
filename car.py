@@ -166,6 +166,12 @@ class Car(Entity):
 				(c[4],c[5],c[6],c[7]),
 				(c[6],c[7],c[0],c[1]))
 
+	@property
+	def sides(self):
+		c = self.corners
+		return 	((c[2],c[3],c[4],c[5]),
+				(c[6],c[7],c[0],c[1]))
+
 	def draw(self):
 		super().draw()
 		return
@@ -203,6 +209,7 @@ class Car(Entity):
 			('v2f', points))
 
 	def update(self, dt):
+		t0 = time.time()
 		if self.collided: return
 		if not self.human and self.time > 3 and self.section_idx == 0:
 			self.collided = True
@@ -211,11 +218,6 @@ class Car(Entity):
 			self.collided = True # broke
 			return
 		self.time += dt
-		#self.iters = (self.iters + 1) % 10
-		t0 = time.time()
-		if self.time - self.last_action  > self.action_rate:
-			self.make_action()
-			self.last_action = self.time
 		t1 = time.time()
 		self.rotate(dt)
 		t2 = time.time()
@@ -233,14 +235,19 @@ class Car(Entity):
 		t5 = time.time()
 		self.sensors.get_distances((self.x, self.y), self.rot, self.section_idx)
 		t6 = time.time()
+		if self.time - self.last_action  > self.action_rate:
+			self.make_action()
+			self.last_action = self.time
+		t7 = time.time()
 		if self.timeperf:
-			a = 1000000 * self.set_and_get_avg_time('action', t1 - t0)
 			r = 1000000 * self.set_and_get_avg_time('rotate', t2 - t1)
 			m = 1000000 * self.set_and_get_avg_time('move', t3 - t2)
 			c = 1000000 * self.set_and_get_avg_time('collision', t4 - t3)
 			s = 1000000 * self.set_and_get_avg_time('section_change', t5 - t4)
 			d = 1000000 * self.set_and_get_avg_time('sensors', t6 - t5)
-			self.times['string'] = "act=%3dus,move=%04.1fus,rot=%04.1fus,coll=%04.1fus,sen=%04.1fus,sec=%04.1fus" % (a, m, r, c, d, s)
+			a = 1000000 * self.set_and_get_avg_time('action', t7 - t6)
+			t = 1000000 * self.set_and_get_avg_time('upd', t7 - t0)
+			self.times['string'] = "%.3fus:act=%3dus,move=%04.1fus,rot=%04.1fus,coll=%04.1fus,sen=%04.1fus,sec=%04.1fus" % (t, a, m, r, c, d, s)
 
 	def make_action(self):
 		if self.human:
@@ -311,37 +318,27 @@ class Car(Entity):
 		new_idx = self.section_idx + change
 		if new_idx < 0:# and not self.track.circular:
 			self.collided = True
-		elif new_idx == len(self.track.sections) and not self.track.circular:
+		elif new_idx == self.track.length and not self.track.circular:
 			self.collided = True
 			self.winner = True
 			return
 		elif change:
-			self.change_section(new_idx % len(self.track.sections))
+			self.change_section(new_idx % self.track.length)
 
 	def check_collision(self):
 		if not self.track:
 			return
 		if cmodule:
-			return cmodule.check_collision_pos((self.x, self.y), self.rot, self.section_idx)
-			#return cmodule.check_collision(self.corners, self.section_idx)
-		#else:
-		#	return self.track.check_collision(self.lines, self.section_idx)
-		left_line = Line(self.top_left, self.bottom_left)
-		right_line = Line(self.top_right, self.bottom_right)
-		last_border = None
-		i = self.section_idx
-		while True:
-			if i < 0 or i >= len(self.track.sections):
-				break
-			section = self.track.sections[i]
-			if section.car_hit_border(left=left_line, right=right_line):
-				return True
-			if last_border != "back" and (left_line.intersects(section.quad.front) or right_line.intersects(section.quad.front)):
-				last_border = "front"
-				i += 1
-			elif last_border != "front" and (left_line.intersects(section.quad.back) or right_line.intersects(section.quad.back)):
-				last_border = "back"
-				i -= 1
-			else:
-				break
+			# a function call for each car is way too expensive, so access the cmodule
+			# directly from here
+			#return self.track.check_car_collision((self.x, self.y), self.rot, self.section_idx)
+			return cmodule.check_car_collision((self.x, self.y), self.rot, self.section_idx)
+		else:
+			# in python it doesn't matter, an extra microsecond is negligible
+			# compared to the total execution time of ~50us
+			box = self.lines[1:4:2] # left and right sides only
+			#box = self.lines
+			for line in box:
+				if self.track.find_intersection(line, self.section_idx):
+					return True
 

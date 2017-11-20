@@ -119,6 +119,7 @@ class Track(Entity):
 		self.circular = False
 
 		self.make_track_new()
+		self.length = len(self.sections)
 
 	def set_ctrack(self):
 		def section_to_array(section):
@@ -195,3 +196,31 @@ class Track(Entity):
 		section.add_to_batch(self.batch)
 		self.sections.append(section)
 		return section
+
+	def check_car_collision(self, pos, rot, section_idx):
+		return cmodule.check_car_collision(pos, rot, section_idx)
+
+	def find_intersection(self, line, idx):
+		prev_border = None
+		while True:
+			if idx < 0:
+				idx += self.length
+			elif idx >= self.length:
+				idx -= self.length
+
+			quad = self.sections[idx].quad
+			if graphtools.segment_intersection(line, quad.leftt, False):
+				return True
+			elif graphtools.segment_intersection(line, quad.rightt, False):
+				return True
+
+			if prev_border != "back" and graphtools.segment_intersection(line, quad.frontt, False):
+				prev_border = "front"
+				idx += 1
+			elif prev_border != "front" and graphtools.segment_intersection(line, quad.backt, False):
+				prev_border = "back"
+				idx -= 1
+			else:
+				break
+
+

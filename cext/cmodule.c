@@ -73,7 +73,7 @@ PyObject* find_track_intersection(PyObject *self, PyObject *args) {
 	return find_rig_distances(rig, pos, rot, section_idx);
 }
 
-PyObject* check_collision(PyObject *self, PyObject *args) {
+PyObject* check_box_collision(PyObject *self, PyObject *args) {
 	double corners[8];
 	int section_idx;
 	PyObject *c;
@@ -103,7 +103,7 @@ PyObject* check_collision(PyObject *self, PyObject *args) {
 	return Py_BuildValue("I", 0);
 }
 
-PyObject* check_collision_pos(PyObject *self, PyObject *args) {
+PyObject* check_car_collision(PyObject *self, PyObject *args) {
 	double pos[2];
 	double rot;
 	int section_idx;
@@ -160,9 +160,12 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 		return NULL;
 	}
 
-	double corner[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
-	double distance = point_distance(ORIGIN, corner);
-	double angle = atan(CAR_WIDTH / CAR_LENGTH);
+	if (CORNER_DISTANCE == 0) {
+		CORNER[0] = CAR_WIDTH / 2;
+		CORNER[1] = CAR_LENGTH / 2;
+		CORNER_DISTANCE = point_distance(ORIGIN, CORNER);
+		CORNER_ANGLE = atan(CAR_WIDTH / CAR_LENGTH);
+	}
 
 	PyObject *lines = PyTuple_New(size * 16);
 
@@ -174,10 +177,10 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 		double x, y, rot;
 		PyArg_ParseTuple(car, "ddd", &x, &y, &rot);
 
-		sin_m = distance * sin(rot - angle);
-		sin_p = distance * sin(rot + angle);
-		cos_m = distance * cos(rot - angle);
-		cos_p = distance * cos(rot + angle);
+		sin_m = CORNER_DISTANCE * sin(rot - CORNER_ANGLE);
+		sin_p = CORNER_DISTANCE * sin(rot + CORNER_ANGLE);
+		cos_m = CORNER_DISTANCE * cos(rot - CORNER_ANGLE);
+		cos_p = CORNER_DISTANCE * cos(rot + CORNER_ANGLE);
 
 		double corners[4][2] = {
 			{x + sin_m, y + cos_m}, // top left
@@ -206,8 +209,8 @@ static PyMethodDef cmodule_funcs[] =
 	{"store_sensors", store_sensors, METH_VARARGS, "store one car sensor info"},
 	{"delete_sensors", delete_sensors, METH_VARARGS, "delete sensor info from memory"},
 	{"find_track_intersection", find_track_intersection, METH_VARARGS, "find first intersection"},
-	{"check_collision", check_collision, METH_VARARGS, "check car collisions"},
-	{"check_collision_pos", check_collision_pos, METH_VARARGS, "check car collisions"},
+	{"check_box_collision", check_box_collision, METH_VARARGS, "find box collisions with the track"},
+	{"check_car_collision", check_car_collision, METH_VARARGS, "find car collisions with the track"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},
 	{"car_lines", car_lines, METH_VARARGS, "Get a tuple of all car lines to draw in one call"},
 	{NULL, NULL, 0, NULL}

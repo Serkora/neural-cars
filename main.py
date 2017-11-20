@@ -33,7 +33,7 @@ class Simulator(pyglet.window.Window):
 
 		self.carnum = (carnum+1) // 2 * 2 # need even number
 		self.cars = []
-		self.car = Car(sensors=self.settings['sensors'], human=True, timeperf=True) # will be deleted later if simulation starts
+		self.car = Car(sensors=self.settings['sensors'], human=True, timeperf=self.settings['timings'] > 1) # will be deleted later if simulation starts
 		self.carline_colours = tuple()
 		self.track = Track()
 		self.track.set_ctrack()
@@ -109,10 +109,10 @@ class Simulator(pyglet.window.Window):
 		dt = min(dt, 1/30) # slow down time instead of "dropping" frames and having quick jumps in space
 		#dt = 1/30
 		self.time += dt
-		t1 = time.time()
 		for key in self.keystate:
 			if self.keystate[key]:
 				self.dispatch_event('on_key_press', key, False)
+		t1 = time.time()
 		if len(self.cars):
 			for car in self.cars:
 				car.update(dt)
@@ -131,15 +131,19 @@ class Simulator(pyglet.window.Window):
 		self.draw()
 		t3 = time.time()
 		if self.settings['timings'] or self.settings['manual']:
-			drawtime = 1000 * self.set_and_get_avg_time('draw', t3 - t2, 5)
+			drawtime = 1000 * self.set_and_get_avg_time('draw', t3 - t2)
 			cardraw = 1000 * self.get_avg_time('cardraw')
 			coords = 1000 * self.get_avg_time('lines')
 			drawcall = 1000 * self.get_avg_time('drawcall')
-			updatetime = 1000 * self.set_and_get_avg_time('update', t2 - t1, 5)
+			updatetime = 1000 * self.set_and_get_avg_time('update', t2 - t1)
 			carupdate = self.car.times['string']
+			carupd = 1000000 * self.car.get_avg_time('upd')
 			if carupdate:
 				self.cartimes_label.text = "Per car: %s" % carupdate
-			self.maintimes_label.text = "dt=%2dms,draw=%2dms(cars=%.2fms:coords=%.2fms,draw=%.2fms),upd=%04.1fms(%3dus/car)" % (1000*dt, drawtime, cardraw, coords, drawcall, updatetime, updatetime / self.carnum * 1000)
+			percar = 1000 * updatetime 
+			if not self.settings['manual']:
+				percar /= self.carnum
+			self.maintimes_label.text = "dt=%2dms,draw=%2dms(cars=%.2fms:coords=%.2fms,draw=%.2fms),upd=%04.1fms(%3dus/car)" % (1000*dt, drawtime, cardraw, coords, drawcall, updatetime, percar)
 
 	def setup2d_init(self):
 		"""
