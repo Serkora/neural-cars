@@ -1,9 +1,9 @@
 import math
 import pyglet
+import geometry
+from geometry import Point, Line, Box, Quad
 from drawables import *
 from cext import cmodule
-
-tau = 2 * math.pi
 
 class TrackSection(Entity):
 	def __init__(self, quad=None, line=None, width=50, section=None, point=None):
@@ -47,11 +47,11 @@ class TrackSection(Entity):
 
 	def move_point(self, x, y, angle, distance, direction):
 		if direction == "left":
-			left_angle = math.pi / 2 - angle
+			left_angle = PI / 2 - angle
 			new_x = x - math.cos(left_angle) * distance
 			new_y = y + math.tan(left_angle) * (x - new_x)
 		elif direction == "right":
-			right_angle = angle - math.pi / 2
+			right_angle = angle - PI / 2
 			new_x = x + math.cos(right_angle) * distance
 			new_y = y - math.tan(right_angle) * (x - new_x)
 		return Point(new_x, new_y)
@@ -90,13 +90,13 @@ class TrackSection(Entity):
 				('v2f', self.quad.loop_vertices),
 				('c3B', colours))
 
-	def changed_section(self, car):
-		carfrontline = Line(self.quad.top_left, (car.x, car.y))
-		carbackline = Line(self.quad.bottom_right, (car.x, car.y))
-
-		if (self.quad.front.angle - carfrontline.angle) % (2 * math.pi) <= math.pi / 2:
+	def changed_section(self, pos):
+		left = self.quad.leftt
+		next_line = (pos[0], pos[1], left[2] + left[2] - left[0], left[3] + left[3] - left[1])
+		prev_line = (pos[0], pos[1], left[0] - left[2] + left[0], left[1] - left[3] + left[1])
+		if not geometry.segment_line_intersection(next_line, self.quad.frontt):
 			return 1
-		elif (self.quad.back.angle - carbackline.angle) % (2 * math.pi) <= math.pi / 2:
+		elif not geometry.segment_line_intersection(prev_line, self.quad.backt):
 			return -1
 		return 0
 
@@ -120,6 +120,8 @@ class Track(Entity):
 
 		self.make_track_new()
 		self.length = len(self.sections)
+		if cmodule:
+			self.set_ctrack()
 
 	def set_ctrack(self):
 		def section_to_array(section):
@@ -165,8 +167,8 @@ class Track(Entity):
 		width = width or self.width
 		point = Point(*point)
 		left = Line(previous.top_left, point)
-		top_right = left.end.translated(left.angle+math.pi/2, width)
-		bottom_right = left.start.translated(left.angle+math.pi/2, width)
+		top_right = geometry.translate(left.end, left.angle+PI/2, width)
+		bottom_right = geometry.translate(left.start, left.angle+PI/2, width)
 		right = Line(bottom_right, top_right)
 		intersection = previous.right.intersection(right)
 		if intersection:
@@ -209,15 +211,17 @@ class Track(Entity):
 				idx -= self.length
 
 			quad = self.sections[idx].quad
-			if graphtools.segment_intersection(line, quad.leftt, False):
-				return True
-			elif graphtools.segment_intersection(line, quad.rightt, False):
-				return True
+			point = geometry.segment_intersection(line, quad.leftt)
+			if point:
+				return point
+			point = geometry.segment_intersection(line, quad.rightt)
+			if point:
+				return point
 
-			if prev_border != "back" and graphtools.segment_intersection(line, quad.frontt, False):
+			if prev_border != "back" and geometry.segment_intersection(line, quad.frontt, False):
 				prev_border = "front"
 				idx += 1
-			elif prev_border != "front" and graphtools.segment_intersection(line, quad.backt, False):
+			elif prev_border != "front" and geometry.segment_intersection(line, quad.backt, False):
 				prev_border = "back"
 				idx -= 1
 			else:

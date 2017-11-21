@@ -36,7 +36,6 @@ class Simulator(pyglet.window.Window):
 		self.car = Car(sensors=self.settings['sensors'], human=True, timeperf=self.settings['timings'] > 1) # will be deleted later if simulation starts
 		self.carline_colours = tuple()
 		self.track = Track()
-		self.track.set_ctrack()
 		self.car.put_on_track(self.track)
 		self.generation = 0
 

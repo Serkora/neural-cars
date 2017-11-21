@@ -39,27 +39,7 @@ static PyObject* intersection(PyObject *self, PyObject *args) {
 	}
 }
 
-PyObject* find_rig_distances(struct SensorRig *rig, double *pos, double rot, int idx) {
-	PyObject *intersections = PyTuple_New(rig->size);
-	int i;
-	double point[2];
-	double distance = 0;
-
-	for (i=0; i<rig->size; i++) {
-		get_endpoint(&(rig->sensors[i]), pos, rot, point);
-		double line[4] = {pos[0], pos[1], point[0], point[1]};
-		if (find_section_intersection(line, idx, point)) {
-			distance = point_distance(pos, point);
-		} else {
-			distance = rig->sensors[i].distance;
-		}
-		PyTuple_SET_ITEM(intersections, i, Py_BuildValue("d", distance));
-	}
-	
-	return intersections;
-}
-
-PyObject* find_track_intersection(PyObject *self, PyObject *args) {
+PyObject* find_rig_distances(PyObject *self, PyObject *args) {
 	struct SensorRig *rig;
 	double pos[2];
 	double rot;
@@ -70,7 +50,23 @@ PyObject* find_track_intersection(PyObject *self, PyObject *args) {
 		return NULL;
 	}
 
-	return find_rig_distances(rig, pos, rot, section_idx);
+	PyObject *intersections = PyTuple_New(rig->size);
+	int i;
+	double point[2];
+	double distance = 0;
+
+	for (i=0; i<rig->size; i++) {
+		get_endpoint(&(rig->sensors[i]), pos, rot, point);
+		double line[4] = {pos[0], pos[1], point[0], point[1]};
+		if (find_section_intersection(line, section_idx, point)) {
+			distance = point_distance(pos, point);
+		} else {
+			distance = rig->sensors[i].distance;
+		}
+		PyTuple_SET_ITEM(intersections, i, Py_BuildValue("d", distance));
+	}
+	
+	return intersections;
 }
 
 PyObject* check_box_collision(PyObject *self, PyObject *args) {
@@ -208,7 +204,7 @@ static PyMethodDef cmodule_funcs[] =
 	{"store_track", store_track, METH_VARARGS, "store track section info"},
 	{"store_sensors", store_sensors, METH_VARARGS, "store one car sensor info"},
 	{"delete_sensors", delete_sensors, METH_VARARGS, "delete sensor info from memory"},
-	{"find_track_intersection", find_track_intersection, METH_VARARGS, "find first intersection"},
+	{"find_rig_distances", find_rig_distances, METH_VARARGS, "find first intersection"},
 	{"check_box_collision", check_box_collision, METH_VARARGS, "find box collisions with the track"},
 	{"check_car_collision", check_car_collision, METH_VARARGS, "find car collisions with the track"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},

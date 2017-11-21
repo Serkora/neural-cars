@@ -1,21 +1,18 @@
 import math
 import time
-from collections import defaultdict
 import pyglet
 import numpy as np
+from collections import defaultdict
 
-import graphtools
 import neural
 from drawables import *
+from geometry import Point, Line, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
 try:
 	from cext import cmodule
 except ImportError:
 	cmodule = None
 
 car_batch = None
-
-PI = math.pi
-TAU = math.pi * 2
 
 class SensorRig(object):
 	def __init__(self, car, angles, distances):
@@ -31,13 +28,24 @@ class SensorRig(object):
 			self.caddr = cmodule.store_sensors(self.angles, self.max_distances)
 
 	def __del__(self):
-		cmodule.delete_sensors(self.caddr)
+		if cmodule:
+			cmodule.delete_sensors(self.caddr)
+
+	def sensor_distance(self, idx, position, rotation, section_idx):
+		x = position[0] + math.sin(self.angles[idx] + rotation) * self.max_distances[idx]
+		y = position[1] + math.cos(self.angles[idx] + rotation) * self.max_distances[idx]
+		line = (position[0], position[1], x, y)
+		point = self.car.track.find_intersection(line, section_idx)
+		if point:
+			return ((point[0] - position[0]) ** 2 + (point[1] - position[1]) ** 2) ** 0.5
+		else:
+			return self.max_distances[idx]
 
 	def get_distances(self, position, rotation, section_idx):
 		if cmodule:
-			self.distances = cmodule.find_track_intersection(self.caddr, position, rotation, section_idx)
+			self.distances = cmodule.find_rig_distances(self.caddr, position, rotation, section_idx)
 		else:
-			pass
+			self.distances = tuple(self.sensor_distance(i, position, rotation, section_idx) for i in range(self.size))
 
 	def reset(self):
 		self.distances = self.max_distances[:]
@@ -81,15 +89,15 @@ class Car(Entity):
 		self.construct()
 		if not sensors:
 			self.sensors = SensorRig(self,
-				(-math.pi/2, -3 * self.corner_angle, -self.corner_angle, 
+				(-PI/2, -3 * self.corner_angle, -self.corner_angle, 
 				0,
-				self.corner_angle, 3 * self.corner_angle, math.pi/2),
+				self.corner_angle, 3 * self.corner_angle, PI/2),
 				(30, 50, 100, 175, 100, 50, 30))
 		elif sensors == 1:
 			self.sensors = SensorRig(self, (0,), (175,))
 		else:
 			n = sensors // 2 * 2 + 1
-			angles = tuple(-math.pi/2 + i*math.pi/(n-1) for i in range(n))
+			angles = tuple(-PI/2 + i*PI/(n-1) for i in range(n))
 			distances = (100,) * n
 			self.sensors = SensorRig(self, angles, distances)
 
@@ -279,14 +287,13 @@ class Car(Entity):
 			return
 		degree = self.max_steering * self.steering * dt
 		if self.speed >=0:
-			self.rot += degree * PI / 180
+			self.rot += degree * DEG_TO_RAD
 			if self.rot > TAU:
 				self.rot -= TAU
 		else:
-			self.rot -= degree * PI / 180
+			self.rot -= degree * DEG_TO_RAD
 			if self.rot < -TAU:
 				self.rot += TAU
-		#self.rot %= TAU
 
 	def put_on_track(self, track):
 		self.winner = False
@@ -314,7 +321,7 @@ class Car(Entity):
 		if cmodule:
 			change = cmodule.changed_section((self.x, self.y), self.section_idx)
 		else:
-			change = self.section.changed_section(self)
+			change = self.section.changed_section((self.x, self.y))
 		new_idx = self.section_idx + change
 		if new_idx < 0:# and not self.track.circular:
 			self.collided = True

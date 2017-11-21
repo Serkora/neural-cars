@@ -40,17 +40,17 @@ bool segment_intersection(double *segment1, double *segment2, /* out */ double *
 	// i.e. ends of one line are located on different sides of
 	// the other line.
 	// check if line1 intersects infinite line2
-	b = (x3*y4 - y3*x4);
-	d1a = dy2 * x1 - dx2*y1 + b;
-	d1b = dy2 * x2 - dx2*y2 + b;
+	a = (x3*y4 - y3*x4);
+	d1a = dy2 * x1 - dx2*y1 + a;
+	d1b = dy2 * x2 - dx2*y2 + a;
 	if (d1a * d1b > 0) {
 		return false;
 	}
 
 	// check if line2 intersects infinite line1
-	a = (x1*y2 - y1*x2);
-	d2a = dy1 * x3 - dx1*y3 + a;
-	d2b = dy1 * x4 - dx1*y4 + a;
+	b = (x1*y2 - y1*x2);
+	d2a = dy1 * x3 - dx1*y3 + b;
+	d2b = dy1 * x4 - dx1*y4 + b;
 	if (d2a * d2b > 0) {
 		return false;
 	}
@@ -69,7 +69,7 @@ bool segment_intersection(double *segment1, double *segment2, /* out */ double *
 
 bool segment_line_intersection(double *segment, double *line) {
 	double x1, y1, x2, y2, x3, y3, x4, y4;	// input lines
-	double dx1, dx2, dy1, dy2, b, denom;	// calculation variables
+	double dx1, dx2, dy1, dy2, a, denom;	// calculation variables
 	double d1a, d1b;						// segment intersection checks
 
 	x1 = segment[0];
@@ -92,9 +92,9 @@ bool segment_line_intersection(double *segment, double *line) {
 		return false;
 	}
 
-	b = (x3*y4 - y3*x4);
-	d1a = dy2 * x1 - dx2*y1 + b;
-	d1b = dy2 * x2 - dx2*y2 + b;
+	a = (x3*y4 - y3*x4);
+	d1a = dy2 * x1 - dx2*y1 + a;
+	d1b = dy2 * x2 - dx2*y2 + a;
 	if (d1a * d1b > 0) {
 		return false;
 	}
