@@ -1,5 +1,6 @@
-import numpy as np
+import math
 import random
+import numpy as np
 
 class PybrainDriver(object):
 	def __init__(self, inputs):
@@ -37,8 +38,8 @@ class Driver(object):
 	def randomize(self):
 		self.network.randomize()
 
-	def compute(self, speed, steering, *cameras):
-		output = self.network.predict([speed, steering, *cameras])
+	def compute(self, speed, steering, *sensors):
+		output = self.network.predict([speed, steering, *sensors])[0]
 		#print("\rputput = %.3f" % output, end="")
 		return steering + 1 * output
 
@@ -46,7 +47,8 @@ class Driver(object):
 		for layer in self.network.layers:
 			if random.random() < chance:
 				for neuron in layer.neurons:
-					neuron.weights += neuron.weights * np.random.uniform(-severity/2, severity/2, neuron.weights.size)
+					neuron.weights = neuron.weights * np.random.uniform(-severity/2, severity/2, neuron.inputs) + neuron.weights
+					#neuron.weights += neuron.weights * np.random.uniform(-severity/2, severity/2, neuron.weights.size)
 
 	def learn_from(self, driver, mutate=False, chance=0, severity=0):
 		self.network = driver.network.copy()
@@ -56,19 +58,23 @@ class Driver(object):
 		# minimalist tanh network
 
 class Neuron(object):
-	__slots__ = ['activation', 'weights', 'bias_weight']
+	__slots__ = ['activation', 'weights', 'bias_weight', 'inputs']
 
 	def __init__(self, activation, inputs):
 		self.activation = activation
+		self.inputs = inputs
 		self.weights = np.random.uniform(size=inputs) * 2 - 1
 		self.weights = np.ones(inputs)
+		self.weights = tuple(np.ones(inputs))
 		self.bias_weight = 0
 
 	def activate(self, inputs, bias):
-		return self.activation(np.sum(self.weights * inputs) + bias*self.bias_weight)
+		return self.activation(sum(p[0]*p[1] for p in zip(self.weights, inputs)) + bias * self.bias_weight)
+		#return self.activation(np.sum(self.weights * inputs) + bias*self.bias_weight)
 
 	def randomize(self):
-		self.weights = np.random.uniform(size=len(self.weights)) * 2 - 1
+		self.weights = tuple(np.random.uniform(size=self.inputs) * 2 - 1)
+		#self.weights = np.random.uniform(size=self.inputs) * 2 - 1
 
 	def __repr__(self):
 		return "Neuron weights: %s" % str(self.weights)
@@ -80,7 +86,7 @@ class Layer(object):
 	def __init__(self, inputs, neurons, activation='tanh', bias=0):
 		self.activation = activation
 		if activation == "tanh":
-			func = np.tanh
+			func = math.tanh
 		elif activation == 'sigmoid':
 			func = sigmoid
 		elif activation == 'unit':
@@ -88,19 +94,24 @@ class Layer(object):
 		else:
 			func = lambda x: x
 
-		self.neurons = np.array([Neuron(func, inputs) for i in range(neurons)])
+		self.neurons = tuple(Neuron(func, inputs) for i in range(neurons))
 		self.bias = bias
 
 	def activate(self, inputs):
-		return np.array([neuron.activate(inputs, self.bias) for neuron in self.neurons])
+		return tuple(neuron.activate(inputs, self.bias) for neuron in self.neurons)
+		#return np.array([neuron.activate(inputs, self.bias) for neuron in self.neurons])
 
 	def randomize(self):
-		[neuron.randomize() for neuron in self.neurons]
+		for neuron in self.neurons:
+			neuron.randomize()
 
 	def copy(self):
-		layer = self.__class__(self.neurons[0].weights.size, self.neurons.size, self.activation)
-		for i in range(self.neurons.size):
-			layer.neurons[i].weights = self.neurons[i].weights.copy()
+		layer = self.__class__(self.neurons[0].inputs, len(self.neurons), self.activation)
+		#layer = self.__class__(self.neurons[0].weights.size, self.neurons.size, self.activation)
+		for i in range(len(self.neurons)):
+			layer.neurons[i].bias_weight = self.neurons[i].bias_weight
+			layer.neurons[i].weights = tuple(self.neurons[i].weights)
+			#layer.neurons[i].weights = self.neurons[i].weights.copy()
 		return layer
 
 	def __repr__(self):
@@ -117,7 +128,8 @@ class Network(object):
 			inputs = len(self.layers[-1].neurons)
 
 	def predict(self, inputs):
-		outputs = np.array(inputs)
+		#outputs = tuple(inputs)
+		outputs = inputs
 		for layer in self.layers:
 			outputs = layer.activate(outputs)
 		return outputs

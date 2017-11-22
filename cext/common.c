@@ -57,8 +57,8 @@ bool segment_intersection(double *segment1, double *segment2, /* out */ double *
 
 	if (point) {
 		// calculate the determinant itself to find the intersection point
-		x = (a * dx2 - dx1 * b) / denom;
-		y = (a * dy2 - dy1 * b) / denom;
+		x = (b * dx2 - dx1 * a) / denom;
+		y = (b * dy2 - dy1 * a) / denom;
 
 		point[0] = x;
 		point[1] = y;

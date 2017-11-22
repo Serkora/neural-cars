@@ -31,6 +31,7 @@ class Simulator(pyglet.window.Window):
 		if type(settings) == dict:
 			self.settings.update(settings)
 
+		self.init_speed = self.settings['speed'] if type(self.settings['speed']) == int else 25
 		self.carnum = (carnum+1) // 2 * 2 # need even number
 		self.cars = []
 		self.car = Car(sensors=self.settings['sensors'], human=True, timeperf=self.settings['timings'] > 1) # will be deleted later if simulation starts
@@ -65,7 +66,7 @@ class Simulator(pyglet.window.Window):
 		self.car = self.cars[0]
 		for car in self.cars:
 			car.put_on_track(self.track)
-			car.accelerate(15)
+			car.accelerate(self.init_speed)
 
 	def evolve(self):
 		self.generation += 1
@@ -311,6 +312,8 @@ if __name__ == "__main__":
 		help="Show camera lines and points")
 	parser.add_argument('--still', action="store_true", default=False,
 		help="Disable neural network and don't move the cars")
+	parser.add_argument('--speed', action="store", type=int, default=None,
+		help="Set the initial car speed")
 	parser.add_argument('-t', '--timings', action="store", type=int, default=0,
 		help="Show various timings")
 	parser.add_argument('-s', '--sensors', action="store", type=int, default=0,
@@ -319,13 +322,14 @@ if __name__ == "__main__":
 		help="Max number of cars to draw (0 = draw all)")
 	args = parser.parse_args()
 
-	settings = {k:getattr(args, k) for k in ['manual', 'cameras', 'timings', 'sensors', 'drawlimit']}
+	settings = {k:getattr(args, k) for k in ['manual', 'cameras', 'timings', 'sensors', 'drawlimit','speed']}
 	simulator = Simulator(settings=settings, carnum=args.cars, width=args.width or args.wsize[0], height=args.height or args.wsize[1])
 	if not args.manual:
 		simulator.start(True)
 	if args.still:
 		for car in simulator.cars:
-			car.human = True
 			car.speed = 0
+			car.human = True
+		
 	pyglet.app.run()
 	#print()

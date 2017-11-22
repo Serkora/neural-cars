@@ -307,6 +307,7 @@ class Car(Entity):
 		self.x += np.random.random() * 20 - 10
 		self.rot = self.section.quad.line.angle
 		self.speed = 0
+		self.steering = 0
 		self.last_action = 0
 		self.sensors.reset()
 		self.start_time = time.time()
