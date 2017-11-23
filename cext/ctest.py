@@ -10,6 +10,7 @@ import track
 import cmodule
 import math
 import car
+import ctypes
 
 l1 = (0,0,5,5)
 l2 = (5,0,0,5)
@@ -128,3 +129,16 @@ def linecoordsbench():
 
 #linecoords()
 
+def cfloat():
+	size = 6
+	arr = (ctypes.c_float*size)(*[2+i for i in range(size)])
+	print("arr addr: 0x%x" % id(arr))
+	for i in range(size):
+		print("%d: 0x%x = %.2f" % (i, id(arr[i]), arr[i]))
+	#print(arr[0], hex(id(arr[0])))
+	values = cmodule.get_float_array(size, id(arr))
+	#print(arr[0], hex(id(arr)))
+	#print(type(values))
+	#print(values)
+
+cfloat()

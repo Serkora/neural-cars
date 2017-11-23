@@ -1,5 +1,6 @@
 import math
 import pyglet
+from pyglet.graphics.vertexbuffer import VertexBufferObject
 import geometry
 from geometry import Point, Line, Box, Quad
 from drawables import *
@@ -41,6 +42,7 @@ class TrackSection(Entity):
 			raise ValueError("Either quad or line with width must be provided to built a Track Section")
 
 		self.colour = (100,100,100)
+		self._colour = (200/255,200/255,200/255)
 		self.length = self.line.length
 		self.rotated_corners()
 		self.make_box()
@@ -90,6 +92,16 @@ class TrackSection(Entity):
 				('v2f', self.quad.loop_vertices),
 				('c3B', colours))
 
+	def get_vertices(self):
+		return self.quad.left.coords + self.quad.right.coords
+
+	def get_colours(self, colours=None, side=True):
+		if colours:
+			colours = (colours * 4)[:12]
+		else:
+			colours = self._colour * 4
+		return colours
+
 	def changed_section(self, pos):
 		left = self.quad.leftt
 		next_line = (pos[0], pos[1], left[2] + left[2] - left[0], left[3] + left[3] - left[1])
@@ -122,6 +134,38 @@ class Track(Entity):
 		self.length = len(self.sections)
 		if cmodule:
 			self.set_ctrack()
+
+		self.init_vbo()
+
+	def init_vbo(self):
+		self.vert_vbo = VertexBufferObject(self.length * 32, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
+		self.col_vbo = VertexBufferObject(self.length * 48, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
+		self.coords = vec(*sum((s.get_vertices() for s in self.sections), ()))
+		self.colours = vec(*sum((s.get_colours() for s in self.sections), ()))
+		self.vert_vbo.set_data(self.coords)
+		self.col_vbo.set_data(self.colours)
+
+	def draw(self):
+		glMatrixMode(GL_MODELVIEW)
+		glPushMatrix()
+
+		glLoadIdentity()
+		self.col_vbo.bind()
+		glColorPointer(3, GL_FLOAT, 0, self.col_vbo.ptr)
+		self.vert_vbo.bind()
+		glVertexPointer(2, GL_FLOAT, 0, self.vert_vbo.ptr)
+		glEnableClientState(GL_VERTEX_ARRAY)
+		glEnableClientState(GL_COLOR_ARRAY)
+		glTranslatef(self.x, self.y, 0.0)
+		glRotatef(-self.rot * RAD_TO_DEG, 0, 0, 1)
+		glScalef(self.size, self.size, 1.0)
+		glDrawArrays(GL_LINES, 0, self.length * 8)
+		glDisableClientState(GL_COLOR_ARRAY)
+		glDisableClientState(GL_VERTEX_ARRAY)
+		self.col_vbo.unbind()
+		self.vert_vbo.unbind()
+
+		glPopMatrix()
 
 	def set_ctrack(self):
 		def section_to_array(section):

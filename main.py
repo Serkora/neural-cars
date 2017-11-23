@@ -7,6 +7,7 @@ from collections import defaultdict
 import pyglet
 from pyglet.gl import *
 from pyglet.window import key
+from pyglet.graphics.vertexbuffer import VertexBufferObject
 import numpy as np
 
 from car import Car
@@ -39,6 +40,8 @@ class Simulator(pyglet.window.Window):
 		self.track = Track()
 		self.car.put_on_track(self.track)
 		self.generation = 0
+		self.cars_pos_vbo = VertexBufferObject(self.carnum * 64, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
+		self.cars_col_vbo = VertexBufferObject(self.carnum * 96, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
 
 		self.time = 0
 		self.fps = pyglet.clock.ClockDisplay()
@@ -63,6 +66,7 @@ class Simulator(pyglet.window.Window):
 		if makecars:
 			self.cars = [Car(sensors=self.settings['sensors'], timeperf=self.settings['timings'] > 1) for i in range(self.carnum)]
 			self.carline_colours = sum((car.line_colours for car in self.cars),())
+			self.cars_col_vbo.set_data(vec(*self.carline_colours))
 		self.car = self.cars[0]
 		for car in self.cars:
 			car.put_on_track(self.track)
@@ -203,15 +207,34 @@ class Simulator(pyglet.window.Window):
 
 			if cmodule:
 				pos = ((car.x, car.y, car.rot) for car in cars)
-				coords = cmodule.car_lines(pos, carnum)#
+				coords = cmodule.car_lines(pos, carnum)
+				#c = np.array(coords, dtype=GLfloat)
+				#coords = vec(*coords)
+				#self.coords = np.array(coords, dtype=GLfloat).ctypes.data
+				self.coords = coords
 			else:
 				coords = sum((car.linecoords for car in cars), ())
+				self.coords = vec(*coords)
 		
 			t2 = time.time()
-			pyglet.graphics.draw(8 * carnum, GL_LINES,
-				('v2f', coords),
-				('c3B', self.carline_colours)
-			)
+
+			self.cars_col_vbo.bind()
+			glColorPointer(3, GL_FLOAT, 0, self.cars_col_vbo.ptr)
+			self.cars_pos_vbo.set_data(self.coords)
+			self.cars_pos_vbo.bind()
+			glVertexPointer(2, GL_FLOAT, 0, self.cars_pos_vbo.ptr)
+			glEnableClientState(GL_VERTEX_ARRAY)
+			glEnableClientState(GL_COLOR_ARRAY)
+			glDrawArrays(GL_LINES, 0, self.carnum * 16)
+			glDisableClientState(GL_COLOR_ARRAY)
+			glDisableClientState(GL_VERTEX_ARRAY)
+			self.cars_col_vbo.unbind()
+			self.cars_pos_vbo.unbind()
+
+			#pyglet.graphics.draw(8 * carnum, GL_LINES,
+			#	('v2f', coords),
+			#	('c3B', self.carline_colours)
+			#)
 		else:
 			t2 = time.time()
 			self.car.draw()
@@ -226,19 +249,6 @@ class Simulator(pyglet.window.Window):
 		self.set_avg_time('lines', t2 - t1)
 		self.set_avg_time('drawcall', t3 - t2)
 		self.set_avg_time('hidden', t4 - t3)
-
-	def draw_cars_old(self):
-		if len(self.cars):
-			if self.settings['drawlimit']:
-				self.car.draw() # to make sure the leader is drawn
-				for car in self.cars[:self.settings['drawlimit']]:
-					if car != self.car:
-						car.draw()
-			else:
-				for car in self.cars:
-					car.draw()
-		else:
-			self.car.draw()
 
 	def draw_labels(self):
 		self.main_label.text = "Time: %.3f. Generation: %d" % (self.time, self.generation)

@@ -5,6 +5,9 @@ from pyglet.gl import *
 
 from geometry import Point, Line, Box, Quad, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
 
+def vec(*args):
+	return (GLfloat * len(args))(*args)
+
 class Entity(object):
 	def __init__(self, x=0, y=0, size=1, rot=0):
 		self.x = x
