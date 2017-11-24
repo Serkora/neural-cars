@@ -153,55 +153,6 @@ PyObject* changed_section(PyObject* self, PyObject *args) {
 	return Py_BuildValue("i", change);
 }
 
-PyObject *_car_lines(PyObject *self, PyObject *args) {
-	PyObject *cars;
-	int size;
-
-	if (!PyArg_ParseTuple(args, "OI", &cars, &size)) {
-		return NULL;
-	}
-
-	if (CORNER_DISTANCE == 0) {
-		CORNER[0] = CAR_WIDTH / 2;
-		CORNER[1] = CAR_LENGTH / 2;
-		CORNER_DISTANCE = point_distance(ORIGIN, CORNER);
-		CORNER_ANGLE = atan(CAR_WIDTH / CAR_LENGTH);
-	}
-
-	PyObject *lines = PyTuple_New(size * 16);
-
-	int i = 0;
-	int j;
-	PyObject *car;
-	double sin_m, sin_p, cos_m, cos_p;
-	while ((car = PyIter_Next(cars))) {
-		double x, y, rot;
-		PyArg_ParseTuple(car, "ddd", &x, &y, &rot);
-
-		sin_m = CORNER_DISTANCE * sin(rot - CORNER_ANGLE);
-		sin_p = CORNER_DISTANCE * sin(rot + CORNER_ANGLE);
-		cos_m = CORNER_DISTANCE * cos(rot - CORNER_ANGLE);
-		cos_p = CORNER_DISTANCE * cos(rot + CORNER_ANGLE);
-
-		double corners[4][2] = {
-			{x + sin_m, y + cos_m}, // top left
-			{x + sin_p, y + cos_p},	// top right
-			{x - sin_m, y - cos_m},	// bottom right
-			{x - sin_p, y - cos_p}	// bottom left
-		};
-
-		for (j=0; j<16; j++) {
-			//PyTuple_SET_ITEM(lines, i+j, Py_BuildValue("d", corners[(j+2)%16/4][j%2]));
-			PyTuple_SET_ITEM(lines, i+j, Py_BuildValue("d", corners[((j+2)&0xf)>>2][j%2]));
-		}
-		i += 16;
-
-		Py_DECREF(car);
-	}
-
-	return lines;
-}
-
 float *lines = 0;
 PyObject *car_lines(PyObject *self, PyObject *args) {
 	PyObject *cars;
@@ -218,17 +169,9 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 		CORNER_ANGLE = atan(CAR_WIDTH / CAR_LENGTH);
 	}
 
-	//PyObject *lines = PyTuple_New(carnum * 16);
-	//printf("lines addr = %p\n", lines);
-	//if (lines) {
-	//	free(lines);
-	//	lines = NULL;
-	//}
 	if (!lines) {
 		lines = malloc(sizeof(float) * carnum * 16);
 	}
-	//lines = malloc(sizeof(float) * carnum * 16);
-	//printf("lines addr = %p\n", lines);
 
 	int i = 0;
 	int j;
@@ -251,50 +194,14 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 		};
 
 		for (j=0; j<16; j++) {
-			//PyTuple_SET_ITEM(lines, i+j, Py_BuildValue("d", corners[(j+2)%16/4][j%2]));
-			//PyTuple_SET_ITEM(lines, i+j, Py_BuildValue("d", corners[((j+2)&0xf)>>2][j%2]));
 			lines[i+j] = corners[((j+2)&0xf)>>2][j%2];
-			//printf("%.2f ", lines[i+j]);
 		}
-		//printf("\n");
 		i += 16;
 
 		Py_DECREF(car);
 	}
 
 	return Py_BuildValue("k", lines);
-}
-
-PyObject* get_float_array(PyObject *self, PyObject *args) {
-	int size;
-	float *arr;
-	long unsigned int addr;
-
-	//if (!PyArg_ParseTuple(args, "id", &size, &b)) {
-	//	return NULL;
-	//}
-	PARSE(args, "ik", &size, &addr);
-	arr = (float *)addr;
-	printf("addr = %p\n", (void *)addr);
-	printf("size = %d, arr = %p, arr[0] = %.2f\n", size, arr, arr[0]);
-	int i;
-	for (i=0; i<size; i++) {
-		printf("arr[%d] = %.3f; ", i, arr[i]);
-		//arr[i] = 1.31 * i;
-		if (!(i % 4)) {
-			printf("\n");
-		}
-	}
-	printf("\n");
-	
-	//arr = malloc(sizeof(float) * size);
-	//int i;
-	//for (i=0; i<size; i++) {
-	//	arr[i] = i;
-	//}
-	//return arr;
-
-	Py_RETURN_NONE;
 }
 
 /*  define functions in module */
@@ -309,7 +216,6 @@ static PyMethodDef cmodule_funcs[] =
 	{"check_car_collision", check_car_collision, METH_VARARGS, "find car collisions with the track"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},
 	{"car_lines", car_lines, METH_VARARGS, "Get a tuple of all car lines to draw in one call"},
-	{"get_float_array", get_float_array, METH_VARARGS, "get ctypes float array"},
 	{NULL, NULL, 0, NULL}
 };
 

@@ -8,6 +8,9 @@ from geometry import Point, Line, Box, Quad, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
 def vec(*args):
 	return (GLfloat * len(args))(*args)
 
+def Vec(*args, dtype=GLfloat):
+	return (dtype * len(args))(*args)
+
 class Entity(object):
 	def __init__(self, x=0, y=0, size=1, rot=0):
 		self.x = x
@@ -43,4 +46,24 @@ class DBox(Entity):
 class Polygon(Entity):
 	def __init__(self, *points):
 		self.points = [Point(point) for point in points]
-		
+
+TRIPLETS = {
+	'red': (1,0,0),
+	'green': (0,1,0),
+	'blue': (0,0,1),
+}
+TRIPLETS['r'] = TRIPLETS['red']
+TRIPLETS['g'] = TRIPLETS['green']
+TRIPLETS['b'] = TRIPLETS['blue']
+
+def line_colours(*cols):
+	return sum((2*TRIPLETS[col] for col in cols), ())
+
+def gradient_line_colours(*cols):
+	t = 2 * TRIPLETS[cols[0]]
+	for col in cols[1:]:
+		t = t + t[-3:] + TRIPLETS[col]
+	return t
+
+def vertex_colours(*cols):
+	return sum((TRIPLETS[col] for col in cols), ())

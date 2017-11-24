@@ -5,14 +5,13 @@ import numpy as np
 from collections import defaultdict
 
 import neural
+import drawables
 from drawables import *
 from geometry import Point, Line, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
 try:
 	from cext import cmodule
 except ImportError:
 	cmodule = None
-
-car_batch = None
 
 class SensorRig(object):
 	def __init__(self, car, angles, distances):
@@ -23,7 +22,6 @@ class SensorRig(object):
 		self.angles = np.array(angles)
 		self.max_distances = distances
 		self.distances = self.max_distances[:] # copy just in case
-		#self.points = [(0,0)] * len(self.distances)
 		if cmodule:
 			self.caddr = cmodule.store_sensors(self.angles, self.max_distances)
 
@@ -59,13 +57,13 @@ class SensorRig(object):
 		return zip(x,y)
 
 class Car(Entity):
-	def __init__(self, sensors=None, human=False, timeperf=False):
+	def __init__(self, sensors=None, human=False):
 		super().__init__()
 
 		self.max_speed = 150
 		self.rot = 0
 		self.speed = 0
-		self.max_steering = 180
+		self.max_steering = PI
 		self.steering = 0
 
 		self.width = 10
@@ -84,8 +82,6 @@ class Car(Entity):
 		self.section_batch = pyglet.graphics.Batch()
 		self.section_batch_idx = -1
 
-		self.info_label = pyglet.text.Label(text="", x=0, y=400)
-
 		self.construct()
 		if not sensors:
 			self.sensors = SensorRig(self,
@@ -102,41 +98,16 @@ class Car(Entity):
 			self.sensors = SensorRig(self, angles, distances)
 
 		self.start_time = time.time()
-		self.time = 0
-		self.last_action = 0
-		self.action_rate = 0.001 # only do something once every 1ms
-		self.driver = neural.Driver(2+self.sensors.size) # neural network
+		self.driver = neural.Driver(1+self.sensors.size) # neural network
 		self.human = human
 
-		self.timeperf = timeperf
-		self.times = defaultdict(list)
-		self.times['string'] = ""
-
-	def set_and_get_avg_time(self, cat, time, limit=20):
-		self.times[cat].append(time)
-		if len(self.times[cat]) > limit:
-			self.times[cat].pop(0)
-		return sum(self.times[cat]) / len(self.times[cat])
-
-	def get_avg_time(self, cat):
-		return len(self.times[cat]) and sum(self.times[cat]) / len(self.times[cat]) or 0
-
 	def construct(self):
-		global car_batch
-		self.line_colours = (
-			1,0,0,1,0,0, 1,0,0,0,1,0,
-			0,1,0,0,1,0, 0,1,0,1,0,0)
-		#self.line_colours = tuple(np.random.uniform(0,1, size=6*4))
-		if car_batch:
-			self.batch = car_batch
-			return
-		colours = (1,0,0, 1,0,0, 0,1,0, 0,1,0)
+		self.line_colours = drawables.gradient_line_colours('red', 'green', 'green', 'red')
+		self.corner_colours = drawables.vertex_colours('red', 'red', 'green', 'green')
 
 		self.batch.add(4, pyglet.gl.GL_LINE_LOOP, None,
 			('v2f', sum(self.quad.vertices, tuple())),
-			('c3f', colours))
-
-		car_batch = self.batch
+			('c3f', self.corner_colours))
 
 	@property
 	def position(self):
@@ -181,16 +152,6 @@ class Car(Entity):
 		return 	((c[2],c[3],c[4],c[5]),
 				(c[6],c[7],c[0],c[1]))
 
-	def draw(self):
-		super().draw()
-		return
-		glLoadIdentity()
-		pyglet.graphics.draw(8, GL_LINES,
-			('v2f', self.linecoords),
-			('c3f', self.line_colours)
-		)
-
-
 	def draw_section(self):
 		glLoadIdentity()
 		if self.section_batch_idx != self.section_idx:
@@ -198,9 +159,6 @@ class Car(Entity):
 			self.section.add_to_batch(self.section_batch, colours=(0,150/255,0,0,150/255,0,0,85/255,120/255,0,85/255,120/255), sides=False)
 			self.section_batch_idx = self.section_idx
 		self.section_batch.draw()
-
-	def draw_labels(self):
-		self.info_label.draw()
 
 	def draw_points(self):
 		glPointSize(5)
@@ -218,57 +176,26 @@ class Car(Entity):
 			('v2f', points))
 
 	def update(self, dt):
-		t0 = time.time()
 		if self.collided: return
 		if not self.human and self.time > 3 and self.section_idx == 0:
 			self.collided = True
 			return
-		if abs(self.steering) > 5:
-			self.collided = True # broke
-			return
 		self.time += dt
-		t1 = time.time()
-		self.rotate(dt)
-		t2 = time.time()
 		self.move(dt)
-		t3 = time.time()
 		side = self.check_collision()
 		if side:
-			self.move(-dt)
-			self.rotate(-dt)
 			self.speed = 0
 			self.collided = True
 			return
-		t4 = time.time()
 		self.check_section_change()
-		t5 = time.time()
 		self.sensors.get_distances((self.x, self.y), self.rot, self.section_idx)
-		t6 = time.time()
-		if self.time - self.last_action  > self.action_rate:
-			self.make_action()
-			self.last_action = self.time
-		t7 = time.time()
-		if self.timeperf:
-			r = 1000000 * self.set_and_get_avg_time('rotate', t2 - t1)
-			m = 1000000 * self.set_and_get_avg_time('move', t3 - t2)
-			c = 1000000 * self.set_and_get_avg_time('collision', t4 - t3)
-			s = 1000000 * self.set_and_get_avg_time('section_change', t5 - t4)
-			d = 1000000 * self.set_and_get_avg_time('sensors', t6 - t5)
-			a = 1000000 * self.set_and_get_avg_time('action', t7 - t6)
-			t = 1000000 * self.set_and_get_avg_time('upd', t7 - t0)
-			self.times['string'] = "%.3fus:act=%3dus,move=%04.1fus,rot=%04.1fus,coll=%04.1fus,sen=%04.1fus,sec=%04.1fus" % (t, a, m, r, c, d, s)
+		self.make_action()
 
 	def make_action(self):
 		if self.human:
 			return
 		# feed the data to the neural network
-		distances = self.sensors.distances
-		self.steering = self.driver.compute(self.speed, self.steering, *distances) #0-0.5 is left, 0.5-1 is right
-		if self.steering > 1:
-			self.steering = 1
-		elif self.steering < -1:
-			self.steering = -1
-		#print("\rself.steering = %.3f" % self.steering, end="")
+		self.steering = self.driver.compute(self.speed, *self.sensors.distances)
 
 	def accelerate(self, diff):
 		new_speed = self.speed + diff
@@ -277,24 +204,14 @@ class Car(Entity):
 			self.speed = -self.speed
 
 	def move(self, dt):
-		if not self.speed:
-			return
-		direction = self.rot
-		self.x += self.speed * math.sin(direction) * dt
-		self.y += self.speed * math.cos(direction) * dt
+		if self.steering:
+			delta = self.max_steering * self.steering * dt
+			self.rot += [-1, 1][self.speed >=0] * delta
 
-	def rotate(self, dt):
-		if not self.steering:
-			return
-		degree = self.max_steering * self.steering * dt
-		if self.speed >=0:
-			self.rot += degree * DEG_TO_RAD
-			if self.rot > TAU:
-				self.rot -= TAU
-		else:
-			self.rot -= degree * DEG_TO_RAD
-			if self.rot < -TAU:
-				self.rot += TAU
+		if self.speed:
+			direction = self.rot
+			self.x += self.speed * math.sin(direction) * dt
+			self.y += self.speed * math.cos(direction) * dt
 
 	def put_on_track(self, track):
 		self.winner = False
@@ -302,13 +219,11 @@ class Car(Entity):
 		self.track = track
 		self.change_section(0)
 		self.time = 0
-		#self.position = self.track.sections[0].quad.line.centre
-		#self.rot = self.track.sections[0].quad.line.angle
 		self.position = self.section.quad.line.centre
-		self.x += np.random.random() * 20 - 10
 		self.rot = self.section.quad.line.angle
-		self.speed = np.random.uniform(0, 50)
-		self.steering = np.random.uniform(-0.1,0.1)
+		self.x += np.random.random() * 30 - 15
+		self.speed = 0
+		self.steering = 0
 		self.last_action = 0
 		self.sensors.reset()
 		self.start_time = time.time()
@@ -325,7 +240,7 @@ class Car(Entity):
 		else:
 			change = self.section.changed_section((self.x, self.y))
 		new_idx = self.section_idx + change
-		if new_idx < 0:# and not self.track.circular:
+		if new_idx < 0 and not self.track.circular:
 			self.collided = True
 		elif new_idx == self.track.length and not self.track.circular:
 			self.collided = True
