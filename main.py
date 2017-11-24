@@ -146,7 +146,7 @@ class Simulator(pyglet.window.Window):
 				self.cartimes_label.text = "Per car: %s" % carupdate
 			percar = 1000 * updatetime 
 			if not self.settings['manual']:
-				percar /= self.carnum
+				percar /= sum(not car.collided for car in self.cars)
 			self.maintimes_label.text = "dt=%2dms,draw=%2dms(cars=%.2fms:coords=%.2fms,draw=%.2fms),upd=%04.1fms(%3dus/car)" % (1000*dt, drawtime, cardraw, coords, drawcall, updatetime, percar)
 
 	def setup2d_init(self):

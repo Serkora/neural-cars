@@ -124,16 +124,17 @@ class Car(Entity):
 	def construct(self):
 		global car_batch
 		self.line_colours = (
-			255,0,0,255,0,0, 255,0,0,0,255,0,
-			0,255,0,0,255,0, 0,255,0,255,0,0)
+			1,0,0,1,0,0, 1,0,0,0,1,0,
+			0,1,0,0,1,0, 0,1,0,1,0,0)
+		#self.line_colours = tuple(np.random.uniform(0,1, size=6*4))
 		if car_batch:
 			self.batch = car_batch
 			return
-		colours = (255,0,0, 255,0,0, 0,255,0, 0,255,0)
+		colours = (1,0,0, 1,0,0, 0,1,0, 0,1,0)
 
 		self.batch.add(4, pyglet.gl.GL_LINE_LOOP, None,
 			('v2f', sum(self.quad.vertices, tuple())),
-			('c3B', colours))
+			('c3f', colours))
 
 		car_batch = self.batch
 
@@ -186,7 +187,7 @@ class Car(Entity):
 		glLoadIdentity()
 		pyglet.graphics.draw(8, GL_LINES,
 			('v2f', self.linecoords),
-			('c3B', self.line_colours)
+			('c3f', self.line_colours)
 		)
 
 
@@ -194,7 +195,7 @@ class Car(Entity):
 		glLoadIdentity()
 		if self.section_batch_idx != self.section_idx:
 			self.section_batch = pyglet.graphics.Batch()
-			self.section.add_to_batch(self.section_batch, colours=(0,150,0,0,150,0,0,85,120,0,85,120), sides=False)
+			self.section.add_to_batch(self.section_batch, colours=(0,150/255,0,0,150/255,0,0,85/255,120/255,0,85/255,120/255), sides=False)
 			self.section_batch_idx = self.section_idx
 		self.section_batch.draw()
 
@@ -205,7 +206,7 @@ class Car(Entity):
 		glPointSize(5)
 		pyglet.graphics.draw(4, pyglet.gl.GL_POINTS,
 			('v2f', self.corners),
-			('c3B', (255,0,0, 150,150,0, 0,150,150, 0,0,255)))
+			('c3f', (1,0,0, 150/255,150/255,0, 0,150/255,150/255, 0,0,1)))
 
 	def draw_sensors(self):
 		glLoadIdentity()
@@ -306,8 +307,8 @@ class Car(Entity):
 		self.position = self.section.quad.line.centre
 		self.x += np.random.random() * 20 - 10
 		self.rot = self.section.quad.line.angle
-		self.speed = 0
-		self.steering = 0
+		self.speed = np.random.uniform(0, 50)
+		self.steering = np.random.uniform(-0.1,0.1)
 		self.last_action = 0
 		self.sensors.reset()
 		self.start_time = time.time()

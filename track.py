@@ -42,7 +42,7 @@ class TrackSection(Entity):
 			raise ValueError("Either quad or line with width must be provided to built a Track Section")
 
 		self.colour = (100,100,100)
-		self._colour = (200/255,200/255,200/255)
+		self.colour = (200/255,200/255,200/255)
 		self.length = self.line.length
 		self.rotated_corners()
 		self.make_box()
@@ -81,16 +81,16 @@ class TrackSection(Entity):
 		if sides:
 			batch.add(2, pyglet.gl.GL_LINES, None,
 				('v2f', self.line.coords),
-				('c3B', (0,100,100,100,255,255))
+				('c3f', (0,100/255,100/255,100/255,1,1))
 			)
 
 			batch.add(4, pyglet.gl.GL_LINES, None,
 				('v2f', self.quad.left.coords + self.quad.right.coords),
-				('c3B', colours))
+				('c3f', colours))
 		else:
 			batch.add(4, pyglet.gl.GL_LINE_LOOP, None,
 				('v2f', self.quad.loop_vertices),
-				('c3B', colours))
+				('c3f', colours))
 
 	def get_vertices(self):
 		return self.quad.left.coords + self.quad.right.coords
@@ -99,7 +99,7 @@ class TrackSection(Entity):
 		if colours:
 			colours = (colours * 4)[:12]
 		else:
-			colours = self._colour * 4
+			colours = self.colour * 4
 		return colours
 
 	def changed_section(self, pos):
