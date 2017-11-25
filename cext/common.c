@@ -10,20 +10,24 @@ void print_array(double *array, int size) {
 	}
 }
 
-bool segment_intersection(double *segment1, double *segment2, /* out */ double *point) {
+static const char SEGMENT_SEGMENT = 0;
+static const char SEGMENT_LINE = 1;
+static const char LINE_LINE = 2;
+
+inline bool _intersection(const double *line1, const double *line2, double *point, char type) {
 	double x1, y1, x2, y2, x3, y3, x4, y4;	// input lines
 	double x, y;							// intersection point
 	double dx1, dx2, dy1, dy2, a, b, denom;	// calculation variables
-	double d1a, d1b, d2a, d2b;				// segment intersection checks
+	double d1a, d1b, d2a, d2b;				// line intersection checks
 
-	x1 = segment1[0];
-	y1 = segment1[1];
-	x2 = segment1[2];
-	y2 = segment1[3];
-	x3 = segment2[0];
-	y3 = segment2[1];
-	x4 = segment2[2];
-	y4 = segment2[3];
+	x1 = line1[0];
+	y1 = line1[1];
+	x2 = line1[2];
+	y2 = line1[3];
+	x3 = line2[0];
+	y3 = line2[1];
+	x4 = line2[2];
+	y4 = line2[3];
 
 	dx1 = x1 - x2;
 	dx2 = x3 - x4;
@@ -36,23 +40,27 @@ bool segment_intersection(double *segment1, double *segment2, /* out */ double *
 		return false;
 	}
 
-	// check that segments intersect rather than infinite lines
-	// i.e. ends of one line are located on different sides of
-	// the other line.
-	// check if line1 intersects infinite line2
 	a = (x3*y4 - y3*x4);
-	d1a = dy2 * x1 - dx2*y1 + a;
-	d1b = dy2 * x2 - dx2*y2 + a;
-	if (d1a * d1b > 0) {
-		return false;
+	if (type < 2) {
+		// check that segments intersect rather than infinite lines
+		// i.e. ends of one line are located on different sides of
+		// the other line.
+		// check if line1 intersects infinite line2
+		d1a = dy2 * x1 - dx2*y1 + a;
+		d1b = dy2 * x2 - dx2*y2 + a;
+		if (d1a * d1b > 0) {
+			return false;
+		}
 	}
 
-	// check if line2 intersects infinite line1
 	b = (x1*y2 - y1*x2);
-	d2a = dy1 * x3 - dx1*y3 + b;
-	d2b = dy1 * x4 - dx1*y4 + b;
-	if (d2a * d2b > 0) {
-		return false;
+	if (type < 1) {
+		// check if line2 intersects infinite line1
+		d2a = dy1 * x3 - dx1*y3 + b;
+		d2b = dy1 * x4 - dx1*y4 + b;
+		if (d2a * d2b > 0) {
+			return false;
+		}
 	}
 
 	if (point) {
@@ -67,37 +75,30 @@ bool segment_intersection(double *segment1, double *segment2, /* out */ double *
 	return true;
 }
 
-bool segment_line_intersection(double *segment, double *line) {
-	double x1, y1, x2, y2, x3, y3, x4, y4;	// input lines
-	double dx1, dx2, dy1, dy2, a, denom;	// calculation variables
-	double d1a, d1b;						// segment intersection checks
+bool intersection(const double *line1, const double *line2, double *point, char type) {
+	return _intersection(line1, line2, point, type);
+}
 
-	x1 = segment[0];
-	y1 = segment[1];
-	x2 = segment[2];
-	y2 = segment[3];
-	x3 = line[0];
-	y3 = line[1];
-	x4 = line[2];
-	y4 = line[3];
+bool segment_intersection(const double *segment1, const double *segment2, double *point) {
+	return _intersection(segment1, segment2, point, SEGMENT_SEGMENT);
+}
 
-	dx1 = x1 - x2;
-	dx2 = x3 - x4;
-	dy1 = y1 - y2;
-	dy2 = y3 - y4;
+bool segment_line_intersection(const double *segment, const double *line, double *point) {
+	return _intersection(segment, line, point, SEGMENT_LINE);
+}
 
-	// common denomiator in determinant calculation
-	denom = dx1*dy2 - dy1*dx2;
-	if (!denom) {
-		return false;
-	}
+bool line_intersection(const double *line1, const double *line2, double *point) {
+	return _intersection(line1, line2, point, LINE_LINE);
+}
 
-	a = (x3*y4 - y3*x4);
-	d1a = dy2 * x1 - dx2*y1 + a;
-	d1b = dy2 * x2 - dx2*y2 + a;
-	if (d1a * d1b > 0) {
-		return false;
-	}
+bool segments_intersect(const double *segment1, const double *segment2) {
+	return _intersection(segment1, segment2, NULL, SEGMENT_SEGMENT);
+}
 
-	return true;
+bool segment_line_intersect(const double *segment, const double *line) {
+	return _intersection(segment, line, NULL, SEGMENT_LINE);
+}
+
+bool lines_intersect(const double *line1, const double *line2) {
+	return _intersection(line1, line2, NULL, LINE_LINE);
 }

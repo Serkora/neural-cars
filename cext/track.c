@@ -17,10 +17,10 @@ bool find_section_intersection(double *line, int idx, double *point) {
 			return true;
 		}
 
-		if (prev != 1 && segment_intersection(line, track.sections[idx].front, NULL)) {
+		if (prev != 1 && segments_intersect(line, track.sections[idx].front)) {
 			prev = 2;
 			idx++;
-		} else if (prev != 2 && segment_intersection(line, track.sections[idx].back, NULL)) {
+		} else if (prev != 2 && segments_intersect(line, track.sections[idx].back)) {
 			prev = 1;
 			idx--;
 		} else {
@@ -43,9 +43,9 @@ int out_of_section(double *pos, int idx) {
 	double prev_line[4] = {pos[0], pos[1],
 		s->left[0] - (s->left[2] - s->left[0]),
 		s->left[1] - (s->left[3] - s->left[1])};
-	if (!segment_line_intersection(next_line, s->front)) {
+	if (!segment_line_intersect(next_line, s->front)) {
 		return 1;
-	} else if (!segment_line_intersection(prev_line, s->back)) {
+	} else if (!segment_line_intersect(prev_line, s->back)) {
 		return -1;
 	}
 	return 0;

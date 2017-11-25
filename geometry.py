@@ -175,11 +175,15 @@ class Quad(object):
 	def intersect_quad(self, origin, quad, quad_origin):
 		return False
 
-def segment_intersection(segment1, segment2, point=True):
-	if cmodule:	return cmodule.intersection(segment1, segment2)
+def intersection(line1, line2, point=True, itype=0):
+	# itype (intersection type):
+	# 		0 - segment-segment
+	#		1 - segment-line
+	#		2 - line-line
+	if cmodule: return cmodule.intersection(line1, line2, point, itype)
 
-	x1, y1, x2, y2 = segment1
-	x3, y3, x4, y4 = segment2
+	x1, y1, x2, y2 = line1
+	x3, y3, x4, y4 = line2
 	dx1 = x1 - x2
 	dx2 = x3 - x4
 	dy1 = y1 - y2
@@ -190,22 +194,24 @@ def segment_intersection(segment1, segment2, point=True):
 	if denom == 0:
 		return
 
-	# check that segments intersect rather than infinite lines
-	# i.e. ends of one line are located on different sides of
-	# the other line.
-	# check if line1 intersects infinite line2
 	a = (x3*y4 - y3*x4)
-	d1a = dy2 * x1 - dx2*y1 + a
-	d1b = dy2 * x2 - dx2*y2 + a
-	if d1a * d1b > 0:
-		return
+	if itype < 2:
+		# check that segments intersect rather than infinite lines
+		# i.e. ends of one line are located on different sides of
+		# the other line.
+		# check if line1 intersects infinite line2
+		d1a = dy2 * x1 - dx2*y1 + a
+		d1b = dy2 * x2 - dx2*y2 + a
+		if d1a * d1b > 0:
+			return
 
-	# check if line2 intersects infinite line1
 	b = (x1*y2 - y1*x2)
-	d2a = dy1 * x3 - dx1*y3 + b
-	d2b = dy1 * x4 - dx1*y4 + b
-	if d2a * d2b > 0:
-		return
+	if itype < 1:
+		# check if line2 intersects infinite line1
+		d2a = dy1 * x3 - dx1*y3 + b
+		d2b = dy1 * x4 - dx1*y4 + b
+		if d2a * d2b > 0:
+			return
 
 	if point:
 		# calculate the determinant to find the intersection point
@@ -215,35 +221,15 @@ def segment_intersection(segment1, segment2, point=True):
 	else:
 		return True
 
+def segment_intersection(segment1, segment2, point=True):
+	return intersection(segment1, segment2, point, 0)
 
-def segment_line_intersection(segment, line):
-	if cmodule:	return cmodule.intersection(line1, line2)
 
-	x1, y1, x2, y2 = segment
-	x3, y3, x4, y4 = line
-	dx1 = x1 - x2
-	dx2 = x3 - x4
-	dy1 = y1 - y2
-	dy2 = y3 - y4
+def segment_line_intersection(segment, line, point=True):
+	return intersection(segment, line, point, 1)
 
-	# common denomiator in determinant calculation
-	denom = dx1*dy2 - dy1*dx2
-	if denom == 0:
-		return
-
-	# check that segments intersect rather than infinite lines
-	# i.e. ends of one line are located on different sides of
-	# the other line.
-	# check if line1 intersects infinite line2
-	a = (x3*y4 - y3*x4)
-	d1a = dy2 * x1 - dx2*y1 + a
-	d1b = dy2 * x2 - dx2*y2 + a
-	if d1a * d1b > 0:
-		return
-
-	return True
-
-line_intersection = segment_intersection
+def line_intersection(line1, line2, point=True):
+	return intersection(line1, line2, point, itype=2)
 
 def same_direction(angle1, angle2):
 	mx = max(angle1, angle2)

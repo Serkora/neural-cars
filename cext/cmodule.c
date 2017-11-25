@@ -7,12 +7,10 @@
 		return NULL; \
 	};
 
-//struct Track track = {0, 0};
-//struct SensorRigs rigs = {0, 0};
-
 const double CAR_LENGTH = 30;
 const double CAR_WIDTH = 10;
 const double ORIGIN[2] = {0,0};
+const double CAR_WHEEL_BASE = CAR_LENGTH / 2;
 /* the below three will be changed later */
 double CORNER[2] = {0, 0};
 double CORNER_ANGLE = 0;
@@ -20,25 +18,29 @@ double CORNER_DISTANCE = 0;
 //const double CORNER_ANGLE = tan(CAR_WIDTH/CAR_LENGTH);
 //const double CORNER_DISTANCE = point_distance(origin, corner);
 
-static PyObject* intersection(PyObject *self, PyObject *args) {
-	double segment1[4];
-	double segment2[4];
+static PyObject* py_intersection(PyObject *self, PyObject *args) {
+	double line1[4];
+	double line2[4];
 	double point[2];
 	PyObject *l1;
 	PyObject *l2;
+	bool needPoint;
+	char type;
 
-	if (!PyArg_ParseTuple(args, "OO", &l1, &l2)) {
-		return NULL;
-	}
+	PARSE(args, "OOpb", &l1, &l2, &needPoint, &type);
 
 	int i;
 	for (i=0; i<4; i++){
-		segment1[i] = PyFloat_AsDouble(PySequence_GetItem(l1, i));
-		segment2[i] = PyFloat_AsDouble(PySequence_GetItem(l2, i));
+		line1[i] = PyFloat_AsDouble(PySequence_GetItem(l1, i));
+		line2[i] = PyFloat_AsDouble(PySequence_GetItem(l2, i));
 	}
 
-	if (segment_intersection(segment1, segment2, point)) {
-		return Py_BuildValue("(dd)", point[0], point[1]);
+	if (intersection(line1, line2, point, type)) {
+		if (needPoint) {
+			return Py_BuildValue("(dd)", point[0], point[1]);
+		} else {
+			return Py_BuildValue("b", true);
+		}
 	} else {
 		Py_RETURN_NONE;
 	}
@@ -51,9 +53,7 @@ PyObject* find_rig_distances(PyObject *self, PyObject *args) {
 	int section_idx;
 	// struct Track *track
 	
-	if (!PyArg_ParseTuple(args, "k(dd)dI", &rig, &pos[0], &pos[1], &rot, &section_idx)) {
-		return NULL;
-	}
+	PARSE(args, "k(dd)dI", &rig, &pos[0], &pos[1], &rot, &section_idx);
 
 	PyObject *intersections = PyTuple_New(rig->size);
 	int i;
@@ -79,9 +79,7 @@ PyObject* check_box_collision(PyObject *self, PyObject *args) {
 	int section_idx;
 	PyObject *c;
 	
-	if (!PyArg_ParseTuple(args, "OI", &c, &section_idx)) {
-		return NULL;
-	}
+	PARSE(args, "OI", &c, &section_idx);
 
 	int i;
 	for (i=0; i<8; i++) {
@@ -109,9 +107,7 @@ PyObject* check_car_collision(PyObject *self, PyObject *args) {
 	double rot;
 	int section_idx;
 	
-	if (!PyArg_ParseTuple(args, "(dd)dI", &pos[0], &pos[1], &rot, &section_idx)) {
-		return NULL;
-	}
+	PARSE(args, "(dd)dI", &pos[0], &pos[1], &rot, &section_idx);
 
 	// should be static really
 	double corner[2] = {CAR_WIDTH/2, CAR_LENGTH/2};
@@ -144,9 +140,7 @@ PyObject* changed_section(PyObject* self, PyObject *args) {
 	double pos[2];
 	int section_idx;
 	
-	if (!PyArg_ParseTuple(args, "(dd)I", &pos[0], &pos[1], &section_idx)) {
-		return NULL;
-	}
+	PARSE(args, "(dd)I", &pos[0], &pos[1], &section_idx);
 
 	int change = out_of_section(pos, section_idx);
 
@@ -158,9 +152,7 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 	PyObject *cars;
 	int carnum;
 
-	if (!PyArg_ParseTuple(args, "OI", &cars, &carnum)) {
-		return NULL;
-	}
+	PARSE(args, "OI", &cars, &carnum);
 
 	if (CORNER_DISTANCE == 0) {
 		CORNER[0] = CAR_WIDTH / 2;
@@ -207,14 +199,18 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 /*  define functions in module */
 static PyMethodDef cmodule_funcs[] =
 {
-	{"intersection", intersection, METH_VARARGS, "find intersection between two lines"},
+		/* Utilities */
+	{"intersection", py_intersection, METH_VARARGS, "find intersection between two lines"},
+		/* One-time data transfers */
 	{"store_track", store_track, METH_VARARGS, "store track section info"},
 	{"store_sensors", store_sensors, METH_VARARGS, "store one car sensor info"},
 	{"delete_sensors", delete_sensors, METH_VARARGS, "delete sensor info from memory"},
+		/* for per-frame updates, physics and such */
 	{"find_rig_distances", find_rig_distances, METH_VARARGS, "find first intersection"},
-	{"check_box_collision", check_box_collision, METH_VARARGS, "find box collisions with the track"},
 	{"check_car_collision", check_car_collision, METH_VARARGS, "find car collisions with the track"},
+	{"check_box_collision", check_box_collision, METH_VARARGS, "find box collisions with the track"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},
+		/* for graphics */
 	{"car_lines", car_lines, METH_VARARGS, "Get a tuple of all car lines to draw in one call"},
 	{NULL, NULL, 0, NULL}
 };

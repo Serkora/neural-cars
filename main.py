@@ -20,7 +20,7 @@ except ImportError:
 	cmodule = None
 
 class Simulator(pyglet.window.Window):
-	def __init__(self, *args, settings=None, carnum=10, width=960, height=540, vsync=False, **kwargs):
+	def __init__(self, *args, settings=None, carnum=10, width=960, height=540, vsync=True, **kwargs):
 		config = pyglet.gl.Config(sample_buffers=1, samples=1, depth_size=16, double_buffer=True)
 		super().__init__(width=width, height=height, config=config, resizable=True, vsync=vsync)
 		self.keystate = key.KeyStateHandler()
@@ -52,7 +52,7 @@ class Simulator(pyglet.window.Window):
 		self.y = 0
 		self.scale = 1
 
-		pyglet.clock.schedule_interval(self._update, 1.0 / 120)
+		pyglet.clock.schedule_interval(self._update, 1.0 / 60)
 
 	def setup_labels(self):
 		self.main_label = pyglet.text.Label(text="", x=10, y=self.height-20)
@@ -234,9 +234,9 @@ class Simulator(pyglet.window.Window):
 		if symbol == key.ESCAPE:
 			self.close()
 		elif symbol == key.LEFT:
-			self.car.steering = -0.5
+			self.car.steering = -math.pi/4
 		elif symbol == key.RIGHT:
-			self.car.steering = 0.5
+			self.car.steering = math.pi/4
 		elif symbol == key.UP:
 			self.car.accelerate(2)
 		elif symbol == key.DOWN:

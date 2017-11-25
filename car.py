@@ -12,6 +12,7 @@ try:
 	from cext import cmodule
 except ImportError:
 	cmodule = None
+#cmodule = None
 
 class SensorRig(object):
 	def __init__(self, car, angles, distances):
@@ -60,16 +61,19 @@ class Car(Entity):
 	def __init__(self, sensors=None, human=False):
 		super().__init__()
 
+		self.update = self.update_no_track
+
 		self.max_speed = 150
 		self.rot = 0
 		self.speed = 0
-		self.max_steering = PI
+		self.max_steering = PI / 3
 		self.steering = 0
 
 		self.width = 10
-		self.height = 30
+		self.length = 30
+		self.wbase = self.length / 2
 
-		self.quad = Quad(box=Box(-self.width/2, self.height/2, self.width, self.height))
+		self.quad = Quad(box=Box(-self.width/2, self.length/2, self.width, self.length))
 
 		self.corner_distance = Line(self.position, self.quad.top_left).length
 		self.corner_angle = Line(self.position, self.quad.top_right).angle
@@ -130,27 +134,21 @@ class Car(Entity):
 		self.bottom_left = (self.x - sdisp, self.y - cdisp)
 		return self.top_left + self.top_right + self.bottom_right + self.bottom_left
 
+
 	@property
 	def linecoords(self):
 		c = self.corners
-		return (c[0],c[1],c[2],c[3],
-				c[2],c[3],c[4],c[5],
-				c[4],c[5],c[6],c[7],
-				c[6],c[7],c[0],c[1])
+		return c[:4] + c[2:6] + c[4:8] + c[6:] + c[:2]
 
 	@property
 	def lines(self):
 		c = self.corners
-		return ((c[0],c[1],c[2],c[3]),
-				(c[2],c[3],c[4],c[5]),
-				(c[4],c[5],c[6],c[7]),
-				(c[6],c[7],c[0],c[1]))
+		return (c[:4], c[2:6], c[4:8], c[6:] + c[:2])
 
 	@property
 	def sides(self):
 		c = self.corners
-		return 	((c[2],c[3],c[4],c[5]),
-				(c[6],c[7],c[0],c[1]))
+		return (c[2:6], c[6:] + c[:2])
 
 	def draw_section(self):
 		glLoadIdentity()
@@ -162,9 +160,13 @@ class Car(Entity):
 
 	def draw_points(self):
 		glPointSize(5)
-		pyglet.graphics.draw(4, pyglet.gl.GL_POINTS,
-			('v2f', self.corners),
-			('c3f', (1,0,0, 150/255,150/255,0, 0,150/255,150/255, 0,0,1)))
+		fwx = self.x + self.wbase * math.sin(self.rot)
+		fwy = self.y + self.wbase * math.cos(self.rot)
+		bwx = self.x - self.wbase * math.sin(self.rot)
+		bwy = self.y - self.wbase * math.cos(self.rot)
+		pyglet.graphics.draw(4+2, pyglet.gl.GL_POINTS,
+			('v2f', self.corners + (fwx, fwy, bwx, bwy)),
+			('c3B', (255,0,0, 150,150,0, 0,150,150, 0,0,255, 0,255,0, 0,255,255)))
 
 	def draw_sensors(self):
 		glLoadIdentity()
@@ -175,19 +177,36 @@ class Car(Entity):
 		pyglet.graphics.draw(n, pyglet.gl.GL_POINTS,
 			('v2f', points))
 
-	def update(self, dt):
-		if self.collided: return
-		if not self.human and self.time > 3 and self.section_idx == 0:
-			self.collided = True
-			return
-		self.time += dt
+	def update_no_track(self, dt):
+		#self.time += dt
+		self.move(dt)
+
+	def update_track(self, dt):
+		#self.time += dt
 		self.move(dt)
 		side = self.check_collision()
 		if side:
 			self.speed = 0
 			self.collided = True
+			self.update = lambda dt: None
 			return
 		self.check_section_change()
+		self.sensors.get_distances((self.x, self.y), self.rot, self.section_idx)
+		self.make_action()
+
+	def update_track_c(self, dt):
+		#self.time += dt
+		self.move(dt)
+		#self.x, self.y, self.rot = cmodule.move((self.x, self.y), self.rot, self.speed, self.steering, dt))
+		side = cmodule.check_car_collision((self.x, self.y), self.rot, self.section_idx)
+		if side:
+			self.speed = 0
+			self.collided = True
+			self.update = lambda dt: None
+			return
+		change = cmodule.changed_section((self.x, self.y), self.section_idx)
+		if change:
+			self.change_section(self.section_idx + change)
 		self.sensors.get_distances((self.x, self.y), self.rot, self.section_idx)
 		self.make_action()
 
@@ -195,7 +214,7 @@ class Car(Entity):
 		if self.human:
 			return
 		# feed the data to the neural network
-		self.steering = self.driver.compute(self.speed, *self.sensors.distances)
+		self.steering = self.max_steering * self.driver.compute(self.speed, *self.sensors.distances)
 
 	def accelerate(self, diff):
 		new_speed = self.speed + diff
@@ -204,14 +223,19 @@ class Car(Entity):
 			self.speed = -self.speed
 
 	def move(self, dt):
-		if self.steering:
-			delta = self.max_steering * self.steering * dt
-			self.rot += [-1, 1][self.speed >=0] * delta
-
-		if self.speed:
-			direction = self.rot
-			self.x += self.speed * math.sin(direction) * dt
-			self.y += self.speed * math.cos(direction) * dt
+		if not self.speed:
+			return
+		direction = self.rot
+		d = self.speed * dt
+		sdir = math.sin(direction)
+		cdir = math.cos(direction)
+		fwx = self.wbase * sdir + d * math.sin(direction + self.steering)
+		fwy = self.wbase * cdir + d * math.cos(direction + self.steering)
+		bwx = sdir * (d - self.wbase)
+		bwy = cdir * (d - self.wbase)
+		self.x += (fwx + bwx) / 2
+		self.y += (fwy + bwy) / 2
+		self.rot = math.atan2(fwx - bwx, fwy - bwy)
 
 	def put_on_track(self, track):
 		self.winner = False
@@ -227,42 +251,29 @@ class Car(Entity):
 		self.last_action = 0
 		self.sensors.reset()
 		self.start_time = time.time()
+		if cmodule:
+			self.update = self.update_track_c
+		else:
+			self.update = self.update_track
 
 	def change_section(self, idx):
-		self.section = self.track.sections[idx]
-		self.section_idx = idx
-
-	def check_section_change(self):
-		if not self.track:
-			return
-		if cmodule:
-			change = cmodule.changed_section((self.x, self.y), self.section_idx)
-		else:
-			change = self.section.changed_section((self.x, self.y))
-		new_idx = self.section_idx + change
-		if new_idx < 0 and not self.track.circular:
+		if idx < 0 and not self.track.circular:
 			self.collided = True
-		elif new_idx == self.track.length and not self.track.circular:
+			return
+		elif idx == self.track.length and not self.track.circular:
 			self.collided = True
 			self.winner = True
 			return
-		elif change:
-			self.change_section(new_idx % self.track.length)
+		idx %= self.track.length
+		self.section = self.track.sections[idx]
+		self.section_idx = idx
 
 	def check_collision(self):
-		if not self.track:
-			return
-		if cmodule:
-			# a function call for each car is way too expensive, so access the cmodule
-			# directly from here
-			#return self.track.check_car_collision((self.x, self.y), self.rot, self.section_idx)
-			return cmodule.check_car_collision((self.x, self.y), self.rot, self.section_idx)
-		else:
-			# in python it doesn't matter, an extra microsecond is negligible
-			# compared to the total execution time of ~50us
-			box = self.lines[1:4:2] # left and right sides only
-			#box = self.lines
-			for line in box:
-				if self.track.find_intersection(line, self.section_idx):
-					return True
+		return self.track.check_car_collision(self)
+
+	def check_section_change(self):
+		change = self.section.changed_section((self.x, self.y))
+		if change:
+			self.change_section(self.section_idx + change)
+
 

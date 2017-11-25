@@ -243,8 +243,14 @@ class Track(Entity):
 		self.sections.append(section)
 		return section
 
-	def check_car_collision(self, pos, rot, section_idx):
-		return cmodule.check_car_collision(pos, rot, section_idx)
+	def check_car_collision(self, car):
+		if cmodule:
+			return cmodule.check_car_collision((car.x, car.y), car.rot, car.section_idx)
+		box = car.lines[1:4:2] # left and right sides only
+		#box = car.lines
+		for line in box:
+			if self.find_intersection(line, car.section_idx):
+				return True
 
 	def find_intersection(self, line, idx):
 		prev_border = None
