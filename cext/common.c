@@ -10,10 +10,6 @@ void print_array(double *array, int size) {
 	}
 }
 
-static const char SEGMENT_SEGMENT = 0;
-static const char SEGMENT_LINE = 1;
-static const char LINE_LINE = 2;
-
 inline bool _intersection(const double *line1, const double *line2, double *point, char type) {
 	double x1, y1, x2, y2, x3, y3, x4, y4;	// input lines
 	double x, y;							// intersection point

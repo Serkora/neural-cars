@@ -6,13 +6,14 @@ from collections import defaultdict
 
 import neural
 import drawables
-from drawables import *
-from geometry import Point, Line, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
+import geometry
+from drawables import Entity, Vec
+from geometry import Point, Line, Box, Quad, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
+from pyglet.gl import *
 try:
 	from cext import cmodule
 except ImportError:
 	cmodule = None
-#cmodule = None
 
 class SensorRig(object):
 	def __init__(self, car, angles, distances):
@@ -62,31 +63,36 @@ class Car(Entity):
 		super().__init__()
 
 		self.update = self.update_no_track
+		#self.move = self.move_cor
 
+		self.start_time = time.time()
+		self.human = human
+
+			# physical car parameters
+		self.width = 10
+		self.length = 30
+		self.hwbase = self.length / 2
+		self.htrack = self.width / 2
 		self.max_speed = 150
 		self.rot = 0
 		self.speed = 0
-		self.max_steering = PI / 3
+		self.max_steering = PI / 4
 		self.steering = 0
 
-		self.width = 10
-		self.length = 30
-		self.wbase = self.length / 2
 
+			# for collision detection and box drawings
 		self.quad = Quad(box=Box(-self.width/2, self.length/2, self.width, self.length))
-
 		self.corner_distance = Line(self.position, self.quad.top_left).length
 		self.corner_angle = Line(self.position, self.quad.top_right).angle
 		_ = self.corners # to set corner attributes
 
+			# track info
 		self.track = None
-		self.collided = False
 		self.section = None
 		self.section_idx = -1
-		self.section_batch = pyglet.graphics.Batch()
-		self.section_batch_idx = -1
+		self.collided = False
+		self.laps = 0
 
-		self.construct()
 		if not sensors:
 			self.sensors = SensorRig(self,
 				(-PI/2, -3 * self.corner_angle, -self.corner_angle, 
@@ -100,10 +106,13 @@ class Car(Entity):
 			angles = tuple(-PI/2 + i*PI/(n-1) for i in range(n))
 			distances = (100,) * n
 			self.sensors = SensorRig(self, angles, distances)
+			# neural network
+		self.driver = neural.Driver(1+self.sensors.size)
 
-		self.start_time = time.time()
-		self.driver = neural.Driver(1+self.sensors.size) # neural network
-		self.human = human
+ 			# graphics stuff
+		self.construct()
+		self.section_batch = pyglet.graphics.Batch()
+		self.section_batch_idx = -1
 
 	def construct(self):
 		self.line_colours = drawables.gradient_line_colours('red', 'green', 'green', 'red')
@@ -160,13 +169,36 @@ class Car(Entity):
 
 	def draw_points(self):
 		glPointSize(5)
-		fwx = self.x + self.wbase * math.sin(self.rot)
-		fwy = self.y + self.wbase * math.cos(self.rot)
-		bwx = self.x - self.wbase * math.sin(self.rot)
-		bwy = self.y - self.wbase * math.cos(self.rot)
-		pyglet.graphics.draw(4+2, pyglet.gl.GL_POINTS,
-			('v2f', self.corners + (fwx, fwy, bwx, bwy)),
-			('c3B', (255,0,0, 150,150,0, 0,150,150, 0,0,255, 0,255,0, 0,255,255)))
+		pyglet.graphics.draw(4, pyglet.gl.GL_POINTS,
+			('v2f', self.corners),
+			('c3B', (255,0,0, 150,150,0, 0,150,150, 0,0,255)))
+		if self.move == self.move_cor:
+			self.draw_cor()
+
+	def draw_cor(self):
+		st = self.steering
+		m = (self.hwbase * math.sin(self.rot), self.hwbase * math.cos(self.rot))
+		m2 = geometry.translate(m, self.rot + st + math.pi/2, 10)
+		b = (self.htrack * math.cos(self.rot) - self.hwbase * math.sin(self.rot),
+				-self.htrack * math.sin(self.rot) - self.hwbase * math.cos(self.rot))
+		b2 = geometry.translate(b, self.rot + math.pi/2, 10)
+		centre = (0,0) # the car centre point
+		cor = geometry.line_intersection(m + m2, b2 + b)
+		l1 = (m[0] - (m2[0]-m[0]) * 10, m[1] - (m2[1] - m[1]) * 10,
+				m[0] + (m2[0]-m[0]) * 10, m[1] + (m2[1] - m[1]) * 10)
+		l2 = (b[0] - (b2[0]-b[0]) * 10, b[1] - (b2[1] - b[1]) * 10,
+				b[0] + (b2[0]-b[0]) * 10, b[1] + (b2[1] - b[1]) * 10)
+		pyglet.graphics.draw(3, pyglet.gl.GL_POINTS,
+			('v2f', m + m + b),
+			('c3B', (255,0,0, 0,255,0, 0,0,255)))
+		pyglet.graphics.draw(4, pyglet.gl.GL_LINES,
+			('v2f', l1 + l2),
+			('c3B', (0,255,0) * 4))
+		if cor:
+			glPointSize(8)
+			pyglet.graphics.draw(1, pyglet.gl.GL_POINTS,
+				('v2f', cor),
+				('c3B', (0,175,80)))
 
 	def draw_sensors(self):
 		glLoadIdentity()
@@ -196,8 +228,7 @@ class Car(Entity):
 
 	def update_track_c(self, dt):
 		#self.time += dt
-		self.move(dt)
-		#self.x, self.y, self.rot = cmodule.move((self.x, self.y), self.rot, self.speed, self.steering, dt))
+		self.x, self.y, self.rot = cmodule.move(self.x, self.y, self.rot, self.speed, self.steering, dt)
 		side = cmodule.check_car_collision((self.x, self.y), self.rot, self.section_idx)
 		if side:
 			self.speed = 0
@@ -229,13 +260,36 @@ class Car(Entity):
 		d = self.speed * dt
 		sdir = math.sin(direction)
 		cdir = math.cos(direction)
-		fwx = self.wbase * sdir + d * math.sin(direction + self.steering)
-		fwy = self.wbase * cdir + d * math.cos(direction + self.steering)
-		bwx = sdir * (d - self.wbase)
-		bwy = cdir * (d - self.wbase)
+		fwx = self.hwbase * sdir + d * math.sin(direction + self.steering)
+		fwy = self.hwbase * cdir + d * math.cos(direction + self.steering)
+		bwx = sdir * (d - self.hwbase)
+		bwy = cdir * (d - self.hwbase)
 		self.x += (fwx + bwx) / 2
 		self.y += (fwy + bwy) / 2
 		self.rot = math.atan2(fwx - bwx, fwy - bwy)
+
+	def move_cor(self, dt):
+		if not self.speed:
+			return
+		d = self.speed * dt
+		if not self.steering:
+			self.x += d * math.sin(self.rot)
+			self.y += d * math.cos(self.rot)
+			return
+		st = self.steering
+		middle = (self.hwbase * math.sin(self.rot), self.hwbase * math.cos(self.rot))
+		middle2 = geometry.translate(middle, self.rot + st + math.pi/2, 10)
+		back = (self.htrack * math.cos(self.rot) - self.hwbase * math.sin(self.rot),
+				-self.htrack * math.sin(self.rot) - self.hwbase * math.cos(self.rot))
+		back2 = geometry.translate(back, self.rot + math.pi/2, 10)
+		centre = (0,0) # the car centre point, same as origin as other things are shifted
+		cor = geometry.line_intersection(middle + middle2, back2 + back)
+		r = ((cor[0] - centre[0]) ** 2 + (cor[1] - centre[1]) ** 2) ** 0.5
+		angle = d / r * [1, -1][self.steering < 0] * 1
+		npos = geometry.rotate(centre, cor, angle)
+		self.x += npos[0] - centre[0]
+		self.y += npos[1] - centre[1]
+		self.rot += angle
 
 	def put_on_track(self, track):
 		self.winner = False
@@ -275,5 +329,4 @@ class Car(Entity):
 		change = self.section.changed_section((self.x, self.y))
 		if change:
 			self.change_section(self.section_idx + change)
-
 

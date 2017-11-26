@@ -21,3 +21,4 @@ struct Network* create_network(int inputs, int outputs);
 void delete_network(struct Network *network);
 void add_layer(struct Network *network, int neurons);
 void activate(struct Network *net, double *inputs, double *outputs);
+void activate_layer(struct Layer *layer, double *inputs, double *outputs);

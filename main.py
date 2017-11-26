@@ -52,7 +52,7 @@ class Simulator(pyglet.window.Window):
 		self.y = 0
 		self.scale = 1
 
-		pyglet.clock.schedule_interval(self._update, 1.0 / 60)
+		pyglet.clock.schedule_interval(self.update, 1.0 / 60)
 
 	def setup_labels(self):
 		self.main_label = pyglet.text.Label(text="", x=10, y=self.height-20)
@@ -106,7 +106,7 @@ class Simulator(pyglet.window.Window):
 		self.set_avg_time(cat, time, limit)
 		return self.get_avg_time(cat)
 
-	def _update(self, dt):
+	def update(self, dt):
 		dt = min(dt, 1/30) # slow down time instead of "dropping" frames and having quick jumps in space
 		#dt = 1/40
 		self.time += dt

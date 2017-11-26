@@ -27,6 +27,20 @@ void add_layer(struct Network *network, int neurons) {
 }
 
 void activate(struct Network *network, double *inputs, double *outputs) {
-
+	if (!network || network->layernum == 0) {
+		return;
+	}
+	int i;
+	double *ins = inputs;
+	for (i=0; i<network->layernum; i++) {
+		double out[network->layers[i].neurons];
+		activate_layer(&network->layers[i], ins, out);
+		ins = out;
+	}
+	for (i=0; i<network->layers[network->layernum-1].neurons; i++) {
+		outputs[i] = ins[i];
+	}
 }
 
+void activate_layer(struct Layer *layer, double *inputs, double *outputs) {
+}

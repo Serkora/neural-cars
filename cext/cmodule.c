@@ -10,7 +10,8 @@
 const double CAR_LENGTH = 30;
 const double CAR_WIDTH = 10;
 const double ORIGIN[2] = {0,0};
-const double CAR_WHEEL_BASE = CAR_LENGTH / 2;
+const double H_WHEELBASE = CAR_LENGTH / 2;
+const double H_TRACK = CAR_WIDTH / 2;
 /* the below three will be changed later */
 double CORNER[2] = {0, 0};
 double CORNER_ANGLE = 0;
@@ -196,6 +197,51 @@ PyObject *car_lines(PyObject *self, PyObject *args) {
 	return Py_BuildValue("k", lines);
 }
 
+PyObject* move(PyObject *self, PyObject *args) {
+	double pos[2];
+	double rot;
+	double steering;
+	double speed;
+	double dt;
+
+	PARSE(args, "dddddd", &pos[0], &pos[1], &rot, &speed, &steering, &dt);
+
+	if (!speed) {
+		return Py_BuildValue("ddd", pos[0], pos[1], rot);
+	}
+
+	double d = speed * dt;
+	if (!steering) {
+		return Py_BuildValue("ddd", pos[0] + d * sin(rot), pos[1] + d * cos(rot), rot);
+	}
+
+	double steer_line[4] = {H_WHEELBASE * sin(rot), H_WHEELBASE * cos(rot),0,0};
+	steer_line[2] = steer_line[0] + sin(rot + steering + M_PI/2);
+	steer_line[3] = steer_line[1] + cos(rot + steering + M_PI/2);
+	double back_line[4] = {
+		 H_TRACK * cos(rot) - H_TRACK * sin(rot),
+		-H_TRACK * sin(rot) - H_TRACK * cos(rot),
+		0,0
+	};
+	back_line[2] = back_line[0] + sin(rot + M_PI/2);
+	back_line[3] = back_line[1] + cos(rot + M_PI/2);
+	double cor[2];
+	if (!intersection(steer_line, back_line, cor, LINE_LINE)) {
+		return Py_BuildValue("ddd", pos[0] + d * sin(rot), pos[1] + d * cos(rot), rot);
+	}
+
+	double radius = point_distance_origin(cor);
+	double angle = d / radius;
+	if (steering < 0) {
+		angle = -angle;
+	}
+	pos[0] += cor[0] - cor[0] * cos(angle) - cor[1] * sin(angle);
+	pos[1] += cor[1] + cor[0] * sin(angle) - cor[1] * cos(angle);
+	rot += angle;
+
+	return Py_BuildValue("ddd", pos[0], pos[1], rot);
+}
+
 /*  define functions in module */
 static PyMethodDef cmodule_funcs[] =
 {
@@ -210,6 +256,7 @@ static PyMethodDef cmodule_funcs[] =
 	{"check_car_collision", check_car_collision, METH_VARARGS, "find car collisions with the track"},
 	{"check_box_collision", check_box_collision, METH_VARARGS, "find box collisions with the track"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},
+	{"move", move, METH_VARARGS, "move the car based on the circle of rotation"},
 		/* for graphics */
 	{"car_lines", car_lines, METH_VARARGS, "Get a tuple of all car lines to draw in one call"},
 	{NULL, NULL, 0, NULL}

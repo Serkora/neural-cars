@@ -140,8 +140,8 @@ class Track(Entity):
 	def init_vbo(self):
 		self.vert_vbo = VertexBufferObject(self.length * 32, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
 		self.col_vbo = VertexBufferObject(self.length * 48, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
-		self.coords = vec(*sum((s.get_vertices() for s in self.sections), ()))
-		self.colours = vec(*sum((s.get_colours() for s in self.sections), ()))
+		self.coords = Vec(*sum((s.get_vertices() for s in self.sections), ()))
+		self.colours = Vec(*sum((s.get_colours() for s in self.sections), ()))
 		self.vert_vbo.set_data(self.coords)
 		self.col_vbo.set_data(self.colours)
 

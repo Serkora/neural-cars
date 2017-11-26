@@ -14,7 +14,15 @@ inline double point_distance(const double *p1, const double *p2) {
 	return sqrt((p1[1] - p2[1])*(p1[1] - p2[1]) + (p1[0] - p2[0])*(p1[0] - p2[0]));
 }
 
+inline double point_distance_origin(const double *p) {
+	return sqrt(p[1] * p[1] + p[0] * p[0]);
+}
+
 void print_array(double *array, int size);
+
+static const char SEGMENT_SEGMENT = 0;
+static const char SEGMENT_LINE = 1;
+static const char LINE_LINE = 2;
 
 bool intersection(const double *line1, const double *line2, double *point, char type);
 bool segment_intersection(const double *segment1, const double *segment2, double *point);

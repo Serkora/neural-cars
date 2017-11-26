@@ -5,9 +5,6 @@ from pyglet.gl import *
 
 from geometry import Point, Line, Box, Quad, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
 
-def vec(*args):
-	return (GLfloat * len(args))(*args)
-
 def Vec(*args, dtype=GLfloat):
 	return (dtype * len(args))(*args)
 

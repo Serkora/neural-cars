@@ -244,7 +244,13 @@ def right_of(angle1, angle2):
 	return not left_of(angle1, angle2)
 
 def translate(point, angle, distance):
-	return Point(point.x + distance*math.sin(angle), point.y + distance*math.cos(angle))
+	return (point[0] + distance*math.sin(angle), point[1] + distance*math.cos(angle))
 
 def shift(point, delta):
-	return Point(point.x + delta[0], point.y + delta[1])
+	return (point[0] + delta[0], point[1] + delta[1])
+
+def rotate(point, anchor, angle):
+	return (
+		anchor[0] + (point[0]-anchor[0]) * math.cos(angle) + (point[1]-anchor[1]) * math.sin(angle),
+		anchor[1] - (point[0]-anchor[0]) * math.sin(angle) + (point[1]-anchor[1]) * math.cos(angle)
+	)
