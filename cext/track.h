@@ -17,8 +17,6 @@ struct Track {
 	struct TrackSection *sections;
 };
 
-static size_t SECTION_SIZE = sizeof(struct TrackSection);
-
 // for use by others
 bool find_section_intersection(double *line, int idx, double *point);
 int out_of_section(double *pos, int idx);

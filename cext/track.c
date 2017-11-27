@@ -1,5 +1,8 @@
 #include "track.h"
 
+static const size_t SECTION_SIZE = sizeof(struct TrackSection);
+
+
 struct Track track = {0, 0};
 
 bool find_section_intersection(double *line, int idx, double *point) {

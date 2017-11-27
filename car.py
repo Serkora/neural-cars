@@ -43,7 +43,7 @@ class SensorRig(object):
 
 	def get_distances(self, position, rotation, section_idx):
 		if cmodule:
-			self.distances = cmodule.find_rig_distances(self.caddr, position, rotation, section_idx)
+			self.distances = cmodule.find_rig_distances(self.caddr, *position, rotation, section_idx)
 		else:
 			self.distances = tuple(self.sensor_distance(i, position, rotation, section_idx) for i in range(self.size))
 
@@ -229,16 +229,17 @@ class Car(Entity):
 	def update_track_c(self, dt):
 		#self.time += dt
 		self.x, self.y, self.rot = cmodule.move(self.x, self.y, self.rot, self.speed, self.steering, dt)
-		side = cmodule.check_car_collision((self.x, self.y), self.rot, self.section_idx)
+		side = cmodule.check_car_collision(self.x, self.y, self.rot, self.section_idx)
 		if side:
 			self.speed = 0
 			self.collided = True
 			self.update = lambda dt: None
 			return
-		change = cmodule.changed_section((self.x, self.y), self.section_idx)
+		change = cmodule.changed_section(self.x, self.y, self.section_idx)
 		if change:
 			self.change_section(self.section_idx + change)
-		self.sensors.get_distances((self.x, self.y), self.rot, self.section_idx)
+		# storing both the distances and caddr in the car object can save 1-5% more
+		self.sensors.distances = cmodule.find_rig_distances(self.sensors.caddr, self.x, self.y, self.rot, self.section_idx)
 		self.make_action()
 
 	def make_action(self):
@@ -277,13 +278,13 @@ class Car(Entity):
 			self.y += d * math.cos(self.rot)
 			return
 		st = self.steering
-		middle = (self.hwbase * math.sin(self.rot), self.hwbase * math.cos(self.rot))
-		middle2 = geometry.translate(middle, self.rot + st + math.pi/2, 10)
+		steer = (self.hwbase * math.sin(self.rot), self.hwbase * math.cos(self.rot))
+		steer2 = geometry.translate(steer, self.rot + st + math.pi/2, 10)
 		back = (self.htrack * math.cos(self.rot) - self.hwbase * math.sin(self.rot),
 				-self.htrack * math.sin(self.rot) - self.hwbase * math.cos(self.rot))
 		back2 = geometry.translate(back, self.rot + math.pi/2, 10)
 		centre = (0,0) # the car centre point, same as origin as other things are shifted
-		cor = geometry.line_intersection(middle + middle2, back2 + back)
+		cor = geometry.line_intersection(steer + steer2, back2 + back)
 		r = ((cor[0] - centre[0]) ** 2 + (cor[1] - centre[1]) ** 2) ** 0.5
 		angle = d / r * [1, -1][self.steering < 0] * 1
 		npos = geometry.rotate(centre, cor, angle)

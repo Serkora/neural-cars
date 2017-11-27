@@ -1,5 +1,8 @@
 #include "sensors.h"
 
+static const size_t SENSOR_SIZE = sizeof(struct Sensor);
+static const size_t SENSOR_RIG_SIZE = sizeof(struct SensorRig);
+
 void print_rig(struct SensorRig *rig) {
 	int i;
 	for (i=0; i<rig->size; i++) {
