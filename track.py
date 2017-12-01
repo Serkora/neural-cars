@@ -133,9 +133,26 @@ class Track(Entity):
 		self.make_track_new()
 		self.length = len(self.sections)
 		if cmodule:
-			self.set_ctrack()
+			self.caddr = self.set_ctrack()
 
 		self.init_vbo()
+
+	def __del__(self):
+		if cmodule:
+			cmodule.delete_track(self.caddr)
+
+	def set_ctrack(self):
+		def section_to_array(section):
+			out = []
+			out.append(section.quad.front.coords)
+			out.append(section.quad.back.coords)
+			out.append(section.quad.left.coords)
+			out.append(section.quad.right.coords)
+			out.append(section.quad.line.coords)
+			out.append(section.quad.line.angle)
+			return out
+		sections = [section_to_array(sec) for sec in self.sections]
+		return cmodule.store_track(sections)
 
 	def init_vbo(self):
 		self.vert_vbo = VertexBufferObject(self.length * 32, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
@@ -166,19 +183,6 @@ class Track(Entity):
 		self.vert_vbo.unbind()
 
 		glPopMatrix()
-
-	def set_ctrack(self):
-		def section_to_array(section):
-			out = []
-			out.append(section.quad.front.coords)
-			out.append(section.quad.back.coords)
-			out.append(section.quad.left.coords)
-			out.append(section.quad.right.coords)
-			out.append(section.quad.line.coords)
-			out.append(section.quad.line.angle)
-			return out
-		sections = [section_to_array(sec) for sec in self.sections]
-		cmodule.store_track(sections)
 
 	def make_track(self):
 		self.add_section(line=Line((-50, -50), (50, 50)))
@@ -245,7 +249,7 @@ class Track(Entity):
 
 	def check_car_collision(self, car):
 		if cmodule:
-			return cmodule.check_car_collision((car.x, car.y), car.rot, car.section_idx)
+			return cmodule.check_car_collision(car.x, car.y, car.rot, car.section_idx)
 		box = car.lines[1:4:2] # left and right sides only
 		#box = car.lines
 		for line in box:

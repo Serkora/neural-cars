@@ -2,10 +2,7 @@ import time
 import math
 import numpy as np
 from collections import namedtuple
-try:
-	from cext import cmodule
-except ImportError:
-	cmodule = None
+from cext import cmodule
 
 PI = math.pi
 TAU = PI * 2

@@ -2,8 +2,7 @@
 
 static const size_t SECTION_SIZE = sizeof(struct TrackSection);
 
-
-struct Track track = {0, 0};
+static struct Track track = {0, 0};
 
 bool find_section_intersection(double *line, int idx, double *point) {
 	int prev = 0;
@@ -70,12 +69,7 @@ void set_section(PyObject *section, int idx) {
 	track.sections[idx].angle = PyFloat_AsDouble(PySequence_GetItem(section, 5));
 }
 
-PyObject* store_track(PyObject *self, PyObject *args) {
-	PyObject *sections;
-	if (!PyArg_ParseTuple(args, "O", &sections)) {
-		return NULL;
-	}
-
+struct Track* store_track(PyObject *sections) {
 	if (track.sections) {
 		free(track.sections);
 		track.sections = 0;
@@ -89,6 +83,15 @@ PyObject* store_track(PyObject *self, PyObject *args) {
 		set_section(section, i);
 		Py_DECREF(section);
 	}
-	
-	Py_RETURN_NONE;
+
+	return &track;
+}
+
+void delete_track(struct Track *track) {
+	if (track) {
+		if (track->sections) {
+			free(track->sections);
+			track->sections = NULL;
+		}
+	}
 }

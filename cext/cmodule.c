@@ -1,6 +1,7 @@
 #include "common.h"
 #include "track.h"
 #include "sensors.h"
+#include "neural.h"
 
 static double CAR_LENGTH = 30;
 static double CAR_WIDTH = 10;
@@ -21,7 +22,7 @@ static void set_car_size(double length, double width) {
 	CORNER[0] = CAR_WIDTH / 2;
 	CORNER[1] = CAR_LENGTH / 2;
 	CORNER_ANGLE = atan(CAR_WIDTH / CAR_LENGTH);
-	CORNER_DISTANCE = point_distance_origin(CORNER);
+	CORNER_DISTANCE = point_origin_distance(CORNER);
 }
 
 PyObject* py_set_car_size(PyObject *self, PyObject *args) {
@@ -79,7 +80,7 @@ PyObject* find_rig_distances(PyObject *self, PyObject *args) {
 		get_endpoint(&(rig->sensors[i]), pos, rot, point);
 		double line[4] = {pos[0], pos[1], point[0], point[1]};
 		if (find_section_intersection(line, section_idx, point)) {
-			distance = point_distance(pos, point);
+			distance = point_point_distance(pos, point);
 		} else {
 			distance = rig->sensors[i].distance;
 		}
@@ -87,6 +88,27 @@ PyObject* find_rig_distances(PyObject *self, PyObject *args) {
 	}
 	
 	return intersections;
+}
+
+PyObject *py_store_track(PyObject *self, PyObject *args) {
+	PyObject *sections;
+	if (!PyArg_ParseTuple(args, "O", &sections)) {
+		return NULL;
+	}
+
+	struct Track *track = store_track(sections);
+
+	return Py_BuildValue("k", track);
+}
+
+PyObject* py_delete_track(PyObject *self, PyObject *args) {
+	struct Track *track;
+
+	PARSE(args, "k", &track);
+
+	delete_track(track);
+
+	Py_RETURN_NONE;
 }
 
 PyObject* check_box_collision(PyObject *self, PyObject *args) {
@@ -231,7 +253,7 @@ PyObject* move(PyObject *self, PyObject *args) {
 		return Py_BuildValue("ddd", pos[0] + d * sin(rot), pos[1] + d * cos(rot), rot);
 	}
 
-	double radius = point_distance_origin(cor);
+	double radius = point_origin_distance(cor);
 	double angle = d / radius;
 	if (steering < 0) {
 		angle = -angle;
@@ -243,22 +265,104 @@ PyObject* move(PyObject *self, PyObject *args) {
 	return Py_BuildValue("ddd", pos[0], pos[1], rot);
 }
 
+PyObject* py_create_network(PyObject *self, PyObject *args) {
+	int inputs;
+	PyObject *layers; // a tuple with neurons at each layer after the input;
+
+	PARSE(args, "iO", &inputs, &layers);
+	int hidden = PySequence_Length(layers);
+	struct Network *net = create_network(inputs);
+	int i, neurons;
+	add_layer(net, inputs);
+	for (i=0; i < hidden; i++) {
+		neurons = PyLong_AsLong(PyTuple_GET_ITEM(layers, i));
+		add_layer(net, neurons);
+	}
+
+	return Py_BuildValue("k", net);
+}
+
+PyObject* py_delete_network(PyObject *self, PyObject *args) {
+	struct Network *net;
+
+	PARSE(args, "k", &net);
+
+	delete_network(net);
+
+	Py_RETURN_NONE;
+}
+
+PyObject* py_copy_network(PyObject *self, PyObject *args) {
+	struct Network *net;
+
+	PARSE(args, "k", &net);
+
+	struct Network *net_copy = copy_network(net);
+
+	return Py_BuildValue("k", net_copy);
+}
+
+PyObject* py_activate_network(PyObject *self, PyObject *args) {
+	struct Network *net;
+	PyObject *input;
+	int i;
+
+	PARSE(args, "kO", &net, &input);
+	if (net->inputs != PySequence_Length(input)) {
+		PyErr_SetString(PyExc_ValueError, "Number of provided inputs does not match the network");
+		return NULL;
+	}
+
+	double inputs[net->inputs];
+	double outputs[net->outputs];
+	for (i=0; i<net->inputs; i++) {
+		inputs[i] = PyFloat_AsDouble(PyTuple_GET_ITEM(input, i));
+	}
+
+	activate_network(net, inputs, outputs);
+
+	PyObject *output = PyTuple_New(net->outputs);
+	for (i=0; i<net->outputs; i++) {
+		PyTuple_SET_ITEM(output, i, Py_BuildValue("d", outputs[i]));
+	}
+
+	return output;
+}
+
+PyObject* py_randomize_network(PyObject *self, PyObject *args) {
+	struct Network *net;
+
+	PARSE(args, "k", &net);
+
+	randomize_network(net);
+
+	Py_RETURN_NONE;
+}
+
+
 /*  define functions in module */
 static PyMethodDef cmodule_funcs[] =
 {
 		/* Utilities */
 	{"intersection", py_intersection, METH_VARARGS, "find intersection between two lines"},
 		/* One-time data transfers */
-	{"store_track", store_track, METH_VARARGS, "store track section info"},
+	{"set_car_size", py_set_car_size, METH_VARARGS, "set car size and related parameters"},
+	{"store_track", py_store_track, METH_VARARGS, "store track section info"},
+	{"delete_track", py_delete_track, METH_VARARGS, "store track section info"},
 	{"store_sensors", store_sensors, METH_VARARGS, "store one car sensor info"},
 	{"delete_sensors", delete_sensors, METH_VARARGS, "delete sensor info from memory"},
-	{"set_car_size", py_set_car_size, METH_VARARGS, "set car size and related parameters"},
 		/* for per-frame updates, physics and such */
 	{"find_rig_distances", find_rig_distances, METH_VARARGS, "get measurements for all sensors"},
 	{"check_car_collision", check_car_collision, METH_VARARGS, "find car collisions with the track"},
 	{"check_box_collision", check_box_collision, METH_VARARGS, "find box collisions with the track"},
 	{"changed_section", changed_section, METH_VARARGS, "check if need to set next section"},
 	{"move", move, METH_VARARGS, "move the car based on the circle of rotation"},
+		/* neural network */
+	{"create_network", py_create_network, METH_VARARGS, "create a new neural network"},
+	{"delete_network", py_delete_network, METH_VARARGS, "delete the neural network"},
+	{"copy_network", py_copy_network, METH_VARARGS, "copy the neural network"},
+	{"randomize_network", py_randomize_network, METH_VARARGS, "randomize all weights"},
+	{"activate_network", py_activate_network, METH_VARARGS, "activate the network"},
 		/* for graphics */
 	{"car_lines", car_lines, METH_VARARGS, "Get a tuple of all car lines to draw in one call"},
 	{NULL, NULL, 0, NULL}
@@ -279,6 +383,11 @@ static struct PyModuleDef cmodule =
 
 PyMODINIT_FUNC PyInit_cmodule(void)
 {
+	time_t t;
+	time(&t);
+	unsigned long seed = t;
+	//printf("seed = %lu\n", seed);
+	srand(seed);
 	set_car_size(CAR_LENGTH, CAR_WIDTH);
 	return PyModule_Create(&cmodule);
 }

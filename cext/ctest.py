@@ -141,4 +141,14 @@ def cfloat():
 	#print(type(values))
 	#print(values)
 
-cfloat()
+def net():
+	inputs = 5
+	layers = (2,1,)
+	net = cmodule.create_network(inputs, layers)
+	if net:
+		print("py net addr = 0x%x" % net)
+	input_data = (0.1,0.2,0.15,0.1,0.3)
+	res = cmodule.activate_network(net, input_data)
+	print("res = ", res)
+
+net()

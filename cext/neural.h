@@ -1,9 +1,10 @@
-#include "common.h"
+#ifndef NEURAL
+#define NEURAL
 
 struct Layer {
 	int inputs;
 	int neurons;
-	double **weights;
+	double *weights;
 	double *biases;
 };
 
@@ -11,14 +12,16 @@ struct Network {
 	int inputs;
 	int outputs;
 	int layernum;
+	int max_neurons;
 	struct Layer *layers;
 };
 
-const size_t NETSIZE = sizeof(struct Network);
-const size_t LAYERSIZE = sizeof(struct Layer);
-
-struct Network* create_network(int inputs, int outputs);
-void delete_network(struct Network *network);
+struct Network* create_network(int inputs);
 void add_layer(struct Network *network, int neurons);
-void activate(struct Network *net, double *inputs, double *outputs);
-void activate_layer(struct Layer *layer, double *inputs, double *outputs);
+void activate_network(struct Network *net, double *inputs, double *outputs);
+void randomize_network(struct Network *network);
+
+struct Network* copy_network(struct Network *net);
+void delete_network(struct Network *network);
+
+#endif

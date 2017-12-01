@@ -21,8 +21,9 @@ struct Track {
 bool find_section_intersection(double *line, int idx, double *point);
 int out_of_section(double *pos, int idx);
 
-// dumping data from python to C heap
-PyObject* store_track(PyObject *self, PyObject *args);
+// dumping important data from python to C heap
+struct Track* store_track(PyObject *sections);
+void delete_track(struct Track *track);
 void set_section(PyObject *section, int idx);
 
 #endif

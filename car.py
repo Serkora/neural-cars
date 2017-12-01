@@ -10,10 +10,8 @@ import geometry
 from drawables import Entity, Vec
 from geometry import Point, Line, Box, Quad, PI, TAU, DEG_TO_RAD, RAD_TO_DEG
 from pyglet.gl import *
-try:
-	from cext import cmodule
-except ImportError:
-	cmodule = None
+
+from cext import cmodule
 
 class SensorRig(object):
 	def __init__(self, car, angles, distances):
@@ -79,7 +77,6 @@ class Car(Entity):
 		self.max_steering = PI / 4
 		self.steering = 0
 
-
 			# for collision detection and box drawings
 		self.quad = Quad(box=Box(-self.width/2, self.length/2, self.width, self.length))
 		self.corner_distance = Line(self.position, self.quad.top_left).length
@@ -107,7 +104,10 @@ class Car(Entity):
 			distances = (100,) * n
 			self.sensors = SensorRig(self, angles, distances)
 			# neural network
-		self.driver = neural.Driver(1+self.sensors.size)
+		if cmodule:
+			self.driver = neural.CDriver(1+self.sensors.size)
+		else:
+			self.driver = neural.Driver(1+self.sensors.size)
 
  			# graphics stuff
 		self.construct()
@@ -121,6 +121,20 @@ class Car(Entity):
 		self.batch.add(4, pyglet.gl.GL_LINE_LOOP, None,
 			('v2f', sum(self.quad.vertices, tuple())),
 			('c3f', self.corner_colours))
+
+	@property
+	def human(self):
+		return self._human
+
+	@human.setter
+	def human(self, val):
+		self._human = val
+		if not cmodule:
+			return
+		if val and self.update == self.update_track_c:
+			self.update = self.update_track
+		elif not val and self.update == self.update_track:
+			self.update = self.update_track_c
 
 	@property
 	def position(self):
@@ -238,15 +252,17 @@ class Car(Entity):
 		change = cmodule.changed_section(self.x, self.y, self.section_idx)
 		if change:
 			self.change_section(self.section_idx + change)
-		# storing both the distances and caddr in the car object can save 1-5% more
 		self.sensors.distances = cmodule.find_rig_distances(self.sensors.caddr, self.x, self.y, self.rot, self.section_idx)
-		self.make_action()
+		self.steering = self.max_steering * cmodule.activate_network(self.driver.cnetaddr, (self.speed,) + self.sensors.distances)[0]
+		#self.make_action() # function calls are too expensive
 
 	def make_action(self):
 		if self.human:
 			return
 		# feed the data to the neural network
-		self.steering = self.max_steering * self.driver.compute(self.speed, *self.sensors.distances)
+		nn_output = self.driver.compute(self.speed, *self.sensors.distances)
+		self.steering = self.max_steering * nn_output
+		#print("nn output = %.5f\r" % nn_output, end="")
 
 	def accelerate(self, diff):
 		new_speed = self.speed + diff
@@ -306,7 +322,7 @@ class Car(Entity):
 		self.last_action = 0
 		self.sensors.reset()
 		self.start_time = time.time()
-		if cmodule:
+		if cmodule and not self.human:
 			self.update = self.update_track_c
 		else:
 			self.update = self.update_track

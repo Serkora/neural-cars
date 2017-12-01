@@ -14,10 +14,7 @@ from car import Car
 from track import Track
 from drawables import Vec
 
-try:
-	from cext import cmodule
-except ImportError:
-	cmodule = None
+from cext import cmodule
 
 class Simulator(pyglet.window.Window):
 	def __init__(self, *args, settings=None, carnum=10, width=960, height=540, vsync=True, **kwargs):
@@ -32,6 +29,7 @@ class Simulator(pyglet.window.Window):
 
 		self.init_speed = self.settings['speed'] if type(self.settings['speed']) == int else 25
 		self.carnum = (carnum+1) // 2 * 2 # need even number
+		self.carnum = carnum
 		self.cars = []
 		self.car = Car(sensors=self.settings['sensors'], human=True) # will be deleted later if simulation starts
 		self.carline_colours = tuple()
@@ -39,7 +37,7 @@ class Simulator(pyglet.window.Window):
 		self.car.put_on_track(self.track)
 		self.generation = 0
 		self.cars_pos_vbo = VertexBufferObject(self.carnum * 64, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
-		self.cars_col_vbo = VertexBufferObject(self.carnum * 96, GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW)
+		self.cars_col_vbo = VertexBufferObject(self.carnum * 96, GL_ARRAY_BUFFER, GL_STATIC_DRAW)
 
 		self.time = 0
 		self.fps = pyglet.clock.ClockDisplay()
@@ -71,9 +69,13 @@ class Simulator(pyglet.window.Window):
 
 	def evolve(self):
 		self.generation += 1
+		for car in self.cars[1:]:
+			car.driver.learn_from(self.cars[0].driver)
+			car.driver.randomize()
+		return
 		#self.maintimes_label.text = "Generation: %d" % self.generation
 		cars = sorted(self.cars, key=operator.attrgetter('section_idx', 'time'), reverse=True)
-		if cars[0].section_idx < 1:
+		if cars[1:2] and cars[1].section_idx < 1:
 			#print("Don't have at least two good specimen, randomizing")
 			[car.driver.randomize() for car in self.cars]
 			return
@@ -82,6 +84,7 @@ class Simulator(pyglet.window.Window):
 		runnerup = cars[1].driver
 		to_mutate = (self.carnum - 2) // 2
 		#print("best section: %d, runnerup section: %d" % (best.section_idx, runnerup.section_idx))
+		# something's wrong here, need to rethink
 		for i, pair in enumerate(zip(self.cars[2::2], self.cars[3::2])):
 			severity = 0.25 * i/to_mutate
 			chance = 1 - i/to_mutate
@@ -122,7 +125,9 @@ class Simulator(pyglet.window.Window):
 				self.evolve()
 				self.start()
 				return
-			leader = sorted(self.cars, key=operator.attrgetter('section_idx'))[-1]
+			s = [car for car in self.cars if not car.collided]
+			leader = sorted(s, key=operator.attrgetter('section_idx'))[-1]
+			#leader = sorted(self.cars, key=operator.attrgetter('section_idx'))[-1]
 			if self.car.section_idx < leader.section_idx:
 				self.car = leader
 		else:

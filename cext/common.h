@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define PARSE(args, format, ...) \
 	if (!PyArg_ParseTuple(args, format, __VA_ARGS__)) { \
@@ -15,11 +16,11 @@ typedef int bool;
 #define false 0
 #define true 1
 
-static inline double point_distance(const double *p1, const double *p2) {
+static inline double point_point_distance(const double *p1, const double *p2) {
 	return sqrt((p1[1] - p2[1])*(p1[1] - p2[1]) + (p1[0] - p2[0])*(p1[0] - p2[0]));
 }
 
-static inline double point_distance_origin(const double *p) {
+static inline double point_origin_distance(const double *p) {
 	return sqrt(p[1] * p[1] + p[0] * p[0]);
 }
 

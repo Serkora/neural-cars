@@ -1,6 +1,35 @@
 import math
 import random
 import numpy as np
+from cext import cmodule
+
+class CDriver:
+	def __init__(self, inputs):
+		self.cnetaddr = cmodule.create_network(inputs, (5,3,1))
+
+	def __del__(self):
+		if cmodule:
+			cmodule.delete_network(self.cnetaddr)
+
+	def randomize(self):
+		cmodule.randomize_network(self.cnetaddr)
+
+	def compute(self, speed, *sensors):
+		return cmodule.activate_network(self.cnetaddr, (speed,) + sensors)[0]
+
+	def mutate(self, severity, chance):
+		return
+		for layer in self.network.layers:
+			if random.random() < chance:
+				for neuron in layer.neurons:
+					neuron.weights = tuple(neuron.weights * np.random.uniform(-severity/2, severity/2, neuron.inputs+1) + neuron.weights)
+
+	def learn_from(self, driver, mutate=False, chance=0, severity=0):
+		if self == driver:
+			print("Trying to learn from yourself has not effect! (Other than a segfault, of course)")
+			return
+		cmodule.delete_network(self.cnetaddr)
+		self.cnetaddr = cmodule.copy_network(driver.cnetaddr)
 
 class PybrainDriver(object):
 	def __init__(self, inputs):
@@ -105,7 +134,7 @@ class Layer(object):
 		return layer
 
 	def __repr__(self):
-		return "%s layer with %d neurons:\n%s" % (self.activation, self.neurons.size, "\n".join(str(neuron) for neuron in self.neurons))
+		return "%s layer with %d neurons:\n%s" % (self.activation, len(self.neurons), "\n".join(str(neuron) for neuron in self.neurons))
 
 class Network(object):
 	def __init__(self, inputs, *layers, activation='tanh'):
